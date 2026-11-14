@@ -1,0 +1,29 @@
+name: mean_reversion_bot
+strategy: mean_reversion
+enabled: true
+
+symbols:
+  - BTC/USDT:USDT
+  - SOL/USDT:USDT
+
+timeframe: 5m
+lookback_candles: 150
+
+parameters:
+  bb_period: 20
+  bb_std: 2.0
+  rsi_period: 14
+  rsi_oversold: 30
+  rsi_overbought: 70
+  atr_period: 14
+
+risk:
+  risk_per_trade_pct: 0.8
+  stop_loss_atr_mult: 1.2
+  take_profit_atr_mult: 1.8
+  max_positions: 4
+  trailing_stop: false
+
+execution:
+  order_type: market
+  reduce_only: false

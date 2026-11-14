@@ -1,0 +1,28 @@
+name: trend_bot
+strategy: trend
+enabled: true
+
+symbols:
+  - BTC/USDT:USDT
+  - ETH/USDT:USDT
+
+timeframe: 15m
+lookback_candles: 200
+
+parameters:
+  fast_ema: 12
+  slow_ema: 26
+  adx_period: 14
+  adx_threshold: 25.0
+  atr_period: 14
+
+risk:
+  risk_per_trade_pct: 1.0
+  stop_loss_atr_mult: 1.5
+  take_profit_atr_mult: 2.5
+  max_positions: 3
+  trailing_stop: false
+
+execution:
+  order_type: market
+  reduce_only: false

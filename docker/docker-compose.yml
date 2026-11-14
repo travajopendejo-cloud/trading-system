@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  trading-system:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: multi-bot-trading
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    ports:
+      - "8000:8000"          # Prometheus metrics
+    volumes:
+      - ../config:/app/config:ro
+      - trading-data:/app/data
+      - trading-logs:/app/logs
+    environment:
+      - TRADING_MODE=paper
+      - LOG_LEVEL=INFO
+      - LOG_JSON=true
+      - METRICS_PORT=8000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/metrics')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Prometheus for scraping
+  # prometheus:
+  #   image: prom/prometheus:v2.54.1
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #   ports:
+  #     - "9090:9090"
+  #   depends_on:
+  #     - trading-system
+
+volumes:
+  trading-data:
+  trading-logs:

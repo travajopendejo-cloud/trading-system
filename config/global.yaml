@@ -1,0 +1,62 @@
+# Global configuration for the multi-bot trading system
+
+exchange:
+  id: binance
+  sandbox: true          # Use testnet when true
+  options:
+    defaultType: future  # spot | future | swap
+
+trading:
+  mode: paper            # paper | live
+  base_currency: USDT
+  initial_equity: 10000.0
+
+risk:
+  max_drawdown_pct: 15.0
+  daily_loss_limit_pct: 5.0
+  max_total_exposure_pct: 80.0
+  max_open_positions: 12
+
+capital_allocation:
+  # Percentage of total equity allocated to each bot
+  trend_bot: 0.35
+  mean_reversion_bot: 0.35
+  breakout_bot: 0.30
+
+logging:
+  level: INFO
+  json_format: true
+  log_dir: logs
+  max_bytes: 10485760    # 10 MB
+  backup_count: 5
+
+metrics:
+  enabled: true
+  port: 8000
+  path: /metrics
+
+telegram:
+  enabled: true
+  rate_limit_per_minute: 20
+  notify_on:
+    - trade_entry
+    - trade_exit
+    - stop_loss
+    - take_profit
+    - error
+    - daily_summary
+
+persistence:
+  db_path: data/trading.db
+  equity_snapshot_interval_sec: 60
+
+bots:
+  - name: trend_bot
+    enabled: true
+    config_file: config/trend_bot.yaml
+  - name: mean_reversion_bot
+    enabled: true
+    config_file: config/mean_reversion_bot.yaml
+  - name: breakout_bot
+    enabled: true
+    config_file: config/breakout_bot.yaml

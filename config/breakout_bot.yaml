@@ -1,0 +1,30 @@
+name: breakout_bot
+strategy: breakout
+enabled: true
+
+symbols:
+  - BTC/USDT:USDT
+  - ETH/USDT:USDT
+  - BNB/USDT:USDT
+
+timeframe: 1h
+lookback_candles: 100
+
+parameters:
+  donchian_period: 20
+  volume_ma_period: 20
+  volume_mult: 1.5
+  atr_period: 14
+  min_atr_pct: 0.3
+
+risk:
+  risk_per_trade_pct: 1.2
+  stop_loss_atr_mult: 2.0
+  take_profit_atr_mult: 3.0
+  max_positions: 3
+  trailing_stop: true
+  trailing_atr_mult: 1.5
+
+execution:
+  order_type: market
+  reduce_only: false
