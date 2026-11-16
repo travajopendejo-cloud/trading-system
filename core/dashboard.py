@@ -84,7 +84,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <body>
   <div class="header">
     <div>
-      <h1>Multi-Bot Trading System</h1>
+      <h1>Multi-Bot Trading System - TEST 123</h1>
       <p class="subtitle">Live monitoring & controls · <a class="metrics-link" href="/metrics" target="_blank">Prometheus metrics</a></p>
     </div>
     <span class="mode-badge" id="mode">—</span>
