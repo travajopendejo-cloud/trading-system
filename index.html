@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Bot Trading Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #e2e8f0;
+      --green: #22c55e;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 20px;
+      line-height: 1.5;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 4px; }
+    .subtitle { color: var(--muted); margin-bottom: 24px; font-size: 0.9rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .card .label { color: var(--muted); font-size: 0.8rem; margin-bottom: 4px; }
+    .card .value { font-size: 1.5rem; font-weight: 600; }
+    .positive { color: var(--green); }
+    .negative { color: var(--red); }
+    .bots { margin-top: 8px; }
+    .bot-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card);
+      padding: 12px 16px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+    .status {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .running { background: #14532d; color: #4ade80; }
+    .stopped { background: #450a0a; color: #f87171; }
+    .actions { margin: 20px 0; display: flex; gap: 10px; flex-wrap: wrap; }
+    button {
+      background: var(--blue);
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.9; }
+    button.secondary { background: #334155; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #334155; }
+    th { color: var(--muted); font-size: 0.8rem; }
+    .footer { margin-top: 30px; color: var(--muted); font-size: 0.8rem; }
+    a { color: var(--blue); }
+  </style>
+</head>
+<body>
+  <h1>Multi-Bot Trading Dashboard</h1>
+  <p class="subtitle">Live monitoring · <a href="/metrics">Prometheus metrics</a></p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="label">Equity</div>
+      <div class="value" id="equity">—</div>
+    </div>
+    <div class="card">
+      <div class="label">Drawdown</div>
+      <div class="value" id="drawdown">—</div>
+    </div>
+    <div class="card">
+      <div class="label">Open Positions</div>
+      <div class="value" id="positions">—</div>
+    </div>
+    <div class="card">
+      <div class="label">Mode</div>
+      <div class="value" id="mode">—</div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button onclick="alert('Control commands coming soon')">Start All</button>
+    <button class="secondary" onclick="alert('Control commands coming soon')">Stop All</button>
+  </div>
+
+  <h2 style="margin-bottom:12px;font-size:1.1rem;">Bots</h2>
+  <div class="bots" id="bots">
+    <div class="bot-row">Loading bots...</div>
+  </div>
+
+  <div class="footer">
+    Auto-refreshes every 4 seconds · Mock mode
+  </div>
+
+  <script>
+    async function loadMetrics() {
+      try {
+        const res = await fetch('/metrics');
+        const text = await res.text();
+
+        // Simple Prometheus text parser
+        const get = (name, labels = null) => {
+          const lines = text.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('#') || !line.trim()) continue;
+            if (line.startsWith(name)) {
+              if (labels) {
+                let match = true;
+                for (const [k, v] of Object.entries(labels)) {
+                  if (!line.includes(`${k}="${v}"`)) match = false;
+                }
+                if (!match) continue;
+              }
+              const parts = line.trim().split(' ');
+              return parseFloat(parts[parts.length - 1]);
+            }
+          }
+          return null;
+        };
+
+        // Equity
+        const equity = get('trading_equity', {scope: 'total'});
+        document.getElementById('equity').textContent = equity !== null 
+          ? equity.toLocaleString('en-US', {style:'currency', currency:'USD'}) 
+          : '—';
+
+        // Drawdown
+        const dd = get('trading_drawdown_pct', {scope: 'total'});
+        const ddEl = document.getElementById('drawdown');
+        if (dd !== null) {
+          ddEl.textContent = dd.toFixed(2) + '%';
+          ddEl.className = 'value ' + (dd > 0 ? 'negative' : 'positive');
+        }
+
+        // Positions
+        const pos = get('trading_open_positions', {scope: 'total'});
+        document.getElementById('positions').textContent = pos !== null ? pos : '—';
+
+        // Mode
+        const modeLine = text.split('\n').find(l => l.includes('trading_system_info') && l.includes('mode='));
+        if (modeLine) {
+          const m = modeLine.match(/mode="([^"]+)"/);
+          document.getElementById('mode').textContent = m ? m[1] : '—';
+        }
+
+        // Bots
+        const botNames = ['trend_bot', 'mean_reversion_bot', 'breakout_bot'];
+        let html = '';
+        for (const bot of botNames) {
+          const status = get('trading_bot_status', {bot});
+          const isRunning = status === 1;
+          html += `
+            <div class="bot-row">
+              <span>${bot.replace('_', ' ')}</span>
+              <span class="status ${isRunning ? 'running' : 'stopped'}">
+                ${isRunning ? 'RUNNING' : 'STOPPED'}
+              </span>
+            </div>`;
+        }
+        document.getElementById('bots').innerHTML = html;
+
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    loadMetrics();
+    setInterval(loadMetrics, 4000);
+  </script>
+</body>
+</html>
