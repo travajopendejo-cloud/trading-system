@@ -1,17 +1,4 @@
-"""Simple web dashboard with bot controls + /metrics (stdlib only)."""
-
-from __future__ import annotations
-
-import json
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any, Callable
-from urllib.parse import urlparse
-
-import logging
-logger = logging.getLogger(__name__)
-
-DASHBOARD_HTML = r"""<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -106,6 +93,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         <button class="btn btn-stop" onclick="controlAll('stop')">Stop All</button>
       </div>
     </div>
+
     <div class="card positions">
       <h2>Open Positions</h2>
       <table>
@@ -115,7 +103,30 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         </tbody>
       </table>
     </div>
+
+    <!-- Trade History -->
+    <div class="card positions" style="grid-column: 1 / -1;">
+      <h2>Trade History (Last 15)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Bot</th>
+            <th>Symbol</th>
+            <th>Side</th>
+            <th>Size</th>
+            <th>Entry</th>
+            <th>Exit</th>
+            <th>PnL</th>
+            <th>Closed</th>
+          </tr>
+        </thead>
+        <tbody id="trades-body">
+          <tr><td colspan="8" style="color:var(--muted)">No closed trades yet</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
+
   <p class="refresh">Auto-refreshes every 3s · <span id="last-update"></span></p>
 
   <script>
@@ -149,6 +160,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       pnlEl.textContent = (pnl >= 0 ? '+' : '') + fmt(pnl);
       pnlEl.className = 'stat' + (pnl >= 0 ? ' green' : ' red');
 
+      // Bots
       const botsEl = document.getElementById('bots-list');
       botsEl.innerHTML = '';
       (data.bots || []).forEach(bot => {
@@ -169,6 +181,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         botsEl.appendChild(row);
       });
 
+      // Open Positions
       const tbody = document.getElementById('positions-body');
       const positions = data.positions || [];
       tbody.innerHTML = positions.length === 0
@@ -181,6 +194,28 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
             <td>${Number(p.amount).toFixed(5)}</td>
             <td>${Number(p.entry_price).toFixed(2)}</td>
           </tr>`).join('');
+
+      // Trade History
+      const tradesBody = document.getElementById('trades-body');
+      const trades = data.closed_trades || [];
+      tradesBody.innerHTML = trades.length === 0
+        ? '<tr><td colspan="8" style="color:var(--muted)">No closed trades yet</td></tr>'
+        : trades.map(t => {
+            const pnlColor = t.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+            const sideColor = t.side === 'long' ? 'var(--green)' : 'var(--red)';
+            const closedTime = t.closed_at ? new Date(t.closed_at).toLocaleTimeString() : '—';
+            return `
+              <tr>
+                <td>${t.bot}</td>
+                <td>${t.symbol}</td>
+                <td style="color:${sideColor}">${t.side}</td>
+                <td>${Number(t.amount).toFixed(5)}</td>
+                <td>${Number(t.entry_price).toFixed(2)}</td>
+                <td>${Number(t.exit_price).toFixed(2)}</td>
+                <td style="color:${pnlColor}">${t.pnl >= 0 ? '+' : ''}${Number(t.pnl).toFixed(2)}</td>
+                <td>${closedTime}</td>
+              </tr>`;
+          }).join('');
 
       document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
     }
@@ -224,96 +259,3 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </script>
 </body>
 </html>
-"""
-
-
-class DashboardHandler(BaseHTTPRequestHandler):
-    get_status: Callable[[], dict[str, Any]] = lambda: {}
-    control_bot: Callable[[str, str], dict[str, Any]] = lambda b, a: {}
-    get_metrics: Callable[[], bytes] = lambda: b"# no metrics\n"
-
-    def log_message(self, format: str, *args: Any) -> None:
-        pass
-
-    def _send(self, body: bytes, content_type: str, status: int = 200) -> None:
-        self.send_response(status)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_OPTIONS(self) -> None:
-        self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
-
-    def do_GET(self) -> None:
-        path = urlparse(self.path).path
-        if path in ("/", "/index.html", "/dashboard"):
-            self._send(DASHBOARD_HTML.encode(), "text/html; charset=utf-8")
-        elif path == "/api/status":
-            try:
-                data = self.get_status()
-                self._send(json.dumps(data).encode(), "application/json")
-            except Exception as exc:
-                self._send(json.dumps({"error": str(exc)}).encode(), "application/json", 500)
-        elif path == "/metrics":
-            try:
-                body = self.get_metrics()
-                self._send(body, "text/plain; version=0.0.4; charset=utf-8")
-            except Exception as exc:
-                self._send(f"# error: {exc}\n".encode(), "text/plain", 500)
-        else:
-            self.send_error(404)
-
-    def do_POST(self) -> None:
-        path = urlparse(self.path).path
-        if path == "/api/control":
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length)
-            try:
-                payload = json.loads(body) if body else {}
-                result = self.control_bot(payload.get("bot", ""), payload.get("action", ""))
-                self._send(json.dumps(result).encode(), "application/json")
-            except Exception as exc:
-                self._send(json.dumps({"error": str(exc)}).encode(), "application/json", 500)
-        else:
-            self.send_error(404)
-
-
-class DashboardServer:
-    def __init__(
-        self,
-        host: str = "0.0.0.0",
-        port: int = 8080,
-        get_status: Callable[[], dict[str, Any]] | None = None,
-        control_bot: Callable[[str, str], dict[str, Any]] | None = None,
-        get_metrics: Callable[[], bytes] | None = None,
-    ) -> None:
-        self.host = host
-        self.port = port
-        self._get_status = get_status or (lambda: {})
-        self._control_bot = control_bot or (lambda b, a: {"ok": False})
-        self._get_metrics = get_metrics or (lambda: b"# no metrics\n")
-        self._server: HTTPServer | None = None
-        self._thread: threading.Thread | None = None
-
-    def start(self) -> None:
-        handler = DashboardHandler
-        handler.get_status = self._get_status  # type: ignore
-        handler.control_bot = self._control_bot  # type: ignore
-        handler.get_metrics = self._get_metrics  # type: ignore
-
-        self._server = HTTPServer((self.host, self.port), handler)
-        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
-        self._thread.start()
-        logger.info("dashboard_started at http://localhost:%s  (metrics at /metrics)", self.port)
-
-    def stop(self) -> None:
-        if self._server:
-            self._server.shutdown()
-            self._server = None
-            logger.info("dashboard_stopped")
