@@ -1,1 +1,27 @@
+# Meme Sniper Configuration
+mode: "paper"                    # paper | live
 
+capital:
+  initial: 100                   # Starting capital in USD
+  max_position_usd: 10           # Max $ per trade
+  max_open_positions: 3
+  daily_loss_limit_usd: 20       # Stop trading for the day if lost this much
+
+risk:
+  take_profit_1: 0.80            # +80%
+  take_profit_1_size: 0.50       # Sell 50% at TP1
+  take_profit_2: 1.60            # +160%
+  stop_loss: 0.35                # -35%
+  time_stop_minutes: 12
+
+filters:
+  max_dev_buy_pct: 8.0           # Max % of supply the dev bought
+  max_bundle_pct: 12.0           # Max % from bundled wallets
+  max_top10_holders_pct: 35.0
+  min_liquidity_usd: 800
+  max_sniper_wallets: 15
+
+execution:
+  slippage: 0.25                 # 25%
+  priority_fee: "high"
+  chain: "solana"
