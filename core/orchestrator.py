@@ -181,6 +181,22 @@ class Orchestrator:
                     "entry_price": pos.entry_price,
                 })
 
+        # Closed trades history
+        closed_trades = []
+        if self.risk:
+            for t in self.risk.get_closed_trades(limit=15):
+                closed_trades.append({
+                    "bot": t.bot_name,
+                    "symbol": t.symbol,
+                    "side": t.side,
+                    "amount": t.amount,
+                    "entry_price": t.entry_price,
+                    "exit_price": t.exit_price,
+                    "pnl": t.pnl,
+                    "opened_at": t.opened_at.isoformat(),
+                    "closed_at": t.closed_at.isoformat(),
+                })
+
         equity = self.risk.equity if self.risk else self.initial_equity
         daily_pnl = self.risk.daily_pnl if self.risk else 0.0
         drawdown = self.risk.current_drawdown_pct if self.risk else 0.0
@@ -194,6 +210,7 @@ class Orchestrator:
             "open_positions": len(positions),
             "bots": bots_info,
             "positions": positions,
+            "closed_trades": closed_trades,          # ← NEW
             "halted": self.risk.halted if self.risk else False,
         }
 
