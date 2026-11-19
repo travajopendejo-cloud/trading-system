@@ -47,6 +47,8 @@ class MemeSniper:
         self.time_stop_minutes = float(risk_cfg.get("time_stop_minutes", 0))
         fraction = float(risk_cfg.get("take_profit_size", risk_cfg.get("take_profit_1_size", 1 / 3)))
         self.tp1_fraction = min(0.9, max(0.1, fraction))
+        self.trail_pct = float(risk_cfg.get("trail_pct", 0.20))
+        self.rejections: list[dict[str, str]] = []
 
     def evaluate_token(self, token: TokenInfo) -> tuple[bool, str]:
         can_open, reason = self.risk.can_open()
@@ -61,6 +63,7 @@ class MemeSniper:
             return None
         ok, reason = self.evaluate_token(token)
         if not ok:
+            self.note_rejection(token.symbol, reason)
             logger.info("Skipped %s (%s): %s", token.symbol, source, reason)
             return None
         return self._buy(token, key, self.risk.position_size(), source)
@@ -82,6 +85,7 @@ class MemeSniper:
             return None
         ok, reason = self.evaluate_token(token)
         if not ok:
+            self.note_rejection(token.symbol, reason)
             logger.info("Skipped copy %s from %s: %s", token.symbol, signal.wallet_name, reason)
             return None
         usd_size = min(float(signal.amount_usd), self.risk.position_size())
@@ -98,6 +102,10 @@ class MemeSniper:
             return None
         moment = now or datetime.now(timezone.utc)
         age_minutes = (moment - pos.entry_time).total_seconds() / 60.0
+        if pos.tp1_done:
+            pos.peak_price = max(pos.peak_price or current_price, current_price)
+            trailed = pos.peak_price * (1.0 - self.trail_pct)
+            pos.stop_loss = max(pos.entry_price, trailed)
         if self.time_stop_minutes > 0 and age_minutes >= self.time_stop_minutes:
             self._exit_all(key, current_price, "time", moment)
             return "time"
@@ -105,24 +113,29 @@ class MemeSniper:
         if "sl" in signals:
             self._exit_all(key, current_price, "sl", moment)
             return "sl"
-        last = None
+        if "tp1" not in signals:
+            return None
         original = pos.original_amount or pos.amount
-        chunk = original * self.tp1_fraction
-        for name in ("tp1", "tp2", "tp3"):
-            if name not in signals:
-                continue
-            current = self.risk.positions.get(key)
-            if current is None:
-                break
-            sell_amount = current.amount if name == "tp3" else min(chunk, current.amount)
-            order = self.executor.sell(current.symbol, sell_amount, current_price)
-            if order["status"] != "filled":
-                return last
-            setattr(current, f"{name}_done", True)
-            self.risk.reduce_position(key, sell_amount, order["price"], name, now=moment)
-            logger.info("%s hit on %s – sold one third", name.upper(), current.symbol)
-            last = name
-        return last
+        sell_amount = min(original * self.tp1_fraction, pos.amount)
+        order = self.executor.sell(pos.symbol, sell_amount, current_price)
+        if order["status"] != "filled":
+            return None
+        pos.tp1_done = True
+        pos.peak_price = current_price
+        pos.stop_loss = pos.entry_price
+        self.risk.reduce_position(key, sell_amount, order["price"], "tp1", now=moment)
+        logger.info("TP1 hit on %s – sold one third and moved the stop to breakeven", pos.symbol)
+        return "tp1"
+
+    def note_rejection(self, symbol: str, reason: str) -> None:
+        self.rejections.append(
+            {
+                "symbol": symbol,
+                "reason": reason,
+                "at": datetime.now(timezone.utc).strftime("%H:%M:%S"),
+            }
+        )
+        self.rejections = self.rejections[-20:]
 
     def dashboard_positions(self) -> list[dict]:
         rows = []

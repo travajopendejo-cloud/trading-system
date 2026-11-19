@@ -126,6 +126,8 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
     <div>
       <h1>Performance</h1>
       <p class="subtitle"><a href="/">Back to the dashboard</a> · closed paper trades only</p>
+      <p class="subtitle">Risk mode: Conservative</p>
+      <p class="subtitle">Paper forward test - did not pass all backtest criteria yet</p>
     </div>
     <span class="badge">PAPER</span>
   </div>

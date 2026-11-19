@@ -106,14 +106,21 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <div>
       <h1>Multi-Bot Trading System</h1>
       <p class="subtitle">Live monitoring & controls · <a class="metrics-link" href="/performance">Performance</a> · <a class="metrics-link" href="/metrics" target="_blank">Prometheus metrics</a></p>
+      <p class="subtitle">Risk mode: Conservative</p>
+      <p class="subtitle">Paper forward test - did not pass all backtest criteria yet</p>
       <p class="subtitle" id="sniper-line"></p>
     </div>
     <span class="mode-badge" id="mode">—</span>
   </div>
 
   <div class="card" id="risk-guard" style="margin-bottom: 16px;">
-    <h2>Risk brakes</h2>
+    <h2>Risk mode: Conservative</h2>
     <div id="risk-guard-body" style="color:var(--muted)">Loading…</div>
+  </div>
+
+  <div class="card" id="sniper-rejects" style="margin-bottom: 16px;">
+    <h2>Meme sniper skipped trades</h2>
+    <div id="sniper-reject-body" style="color:var(--muted)">No skipped tokens yet.</div>
   </div>
 
   <div class="card" style="margin-bottom: 20px;">
@@ -195,10 +202,18 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
           const names = (sniper.tracked_wallets || []).join(', ') || 'none';
           const off = (sniper.disabled_wallets || []).join(', ');
           const bank = sniper.capital == null ? '' : ' · paper bankroll $' + Number(sniper.capital).toFixed(2);
-          sniperLine.textContent = 'Meme sniper: PAPER only' + bank + ' · watching ' + names + (off ? ' · off: ' + off : '');
+          const copying = (sniper.copying || []).join(', ') || 'nobody (the latest wallet check did not pass)';
+          sniperLine.textContent = 'Meme sniper: PAPER only' + bank + ' · watching ' + names + ' · copying ' + copying + (off ? ' · off: ' + off : '');
         } else {
           const off = (sniper.disabled_wallets || []).join(', ');
           sniperLine.textContent = 'Meme sniper: paper bot is not running' + (off ? ' · off: ' + off : '');
+        }
+        const rejectEl = document.getElementById('sniper-reject-body');
+        if (rejectEl) {
+          const rows = (sniper && sniper.rejections) || [];
+          rejectEl.textContent = rows.length
+            ? rows.map(row => row.symbol + ': ' + row.reason).join(' | ')
+            : 'No skipped tokens yet.';
         }
       }
 
@@ -247,6 +262,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
           <div>
             <div class="bot-name">${bot.name}</div>
             <span class="badge ${statusClass}">${bot.status}</span>
+            ${bot.note ? `<div style="color:var(--muted);font-size:0.8rem;margin-top:4px">${bot.note}</div>` : ''}
             <span style="color:var(--muted);font-size:0.75rem;margin-left:8px">${bot.symbols || ''}</span>
           </div>
           <div>

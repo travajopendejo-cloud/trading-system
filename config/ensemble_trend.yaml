@@ -12,15 +12,16 @@ symbols:
 timeframe: 1d
 
 parameters:
-  target_vol: 0.25
+  # Conservative forward test. The published research test used 25%.
+  target_vol: 0.15
   vol_lookback: 90
   rebalance_band: 0.20
   fee_rate: 0.001
   slippage_rate: 0.001
-  per_coin_cap: 0.40
-  gross_cap: 1.0
-  # Optional. Leave false unless a separate backtest says to turn one on.
-  regime_filter: false
+  per_coin_cap: 0.25
+  gross_cap: 0.60
+  # On for this paper test. The long window passed; the holdout year did not.
+  regime_filter: true
   funding_filter: false
 
 risk:

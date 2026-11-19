@@ -215,6 +215,7 @@ class Orchestrator:
                 "name": name,
                 "status": status,
                 "symbols": symbols,
+                "note": getattr(bot, "status_note", "") or "",
             })
 
         positions = []
@@ -226,6 +227,17 @@ class Orchestrator:
                     "side": pos.side,
                     "amount": pos.amount,
                     "entry_price": pos.entry_price,
+                })
+        for name, bot in self.bots.items():
+            for symbol, weight in (getattr(bot, "weights", {}) or {}).items():
+                if weight <= 0:
+                    continue
+                positions.append({
+                    "bot": name,
+                    "symbol": symbol,
+                    "side": "long",
+                    "amount": round(weight, 4),
+                    "entry_price": (getattr(bot, "last_prices", {}) or {}).get(symbol),
                 })
 
         # Closed trades history
@@ -386,6 +398,8 @@ class Orchestrator:
             "last_error": None,
             "rpc": None,
             "helius": False,
+            "rejections": [],
+            "copying": [],
         }
         try:
             from meme_sniper.core.wallet_copy import TRACKED_WALLETS

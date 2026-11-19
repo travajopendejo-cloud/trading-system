@@ -47,14 +47,14 @@ def test_caps_keep_one_coin_at_40_percent_and_gross_at_100():
 def test_guard_halves_then_goes_to_cash_and_pauses_a_bot():
     guard = PortfolioGuard()
     guard.update_portfolio(100)
-    guard.update_portfolio(89)
+    guard.update_portfolio(93)
     assert guard.state == "halved"
     assert guard.exposure_scale() == 0.5
-    guard.update_portfolio(79)
+    guard.update_portfolio(88)
     assert guard.state == "cash"
     assert guard.exposure_scale() == 0.0
     guard.update_bot("ensemble_trend", 100)
-    guard.update_bot("ensemble_trend", 84)
+    guard.update_bot("ensemble_trend", 90)
     assert "ensemble_trend" in guard.paused_bots
     assert guard.exposure_scale("ensemble_trend") == 0.0
 
@@ -91,3 +91,37 @@ def test_portfolio_simulation_stays_long_only():
     assert result.equity[-1] > 0
     assert all(value >= -1e-9 for value in result.ending_weights.values())
     assert sum(result.ending_weights.values()) <= 1.0 + 1e-6
+
+
+def test_daily_paper_decision_trades_once_per_candle():
+    from bots.ensemble_trend_bot import EnsembleTrendBot
+
+    class Config:
+        name = "ensemble_trend"
+        parameters = {
+            "regime_filter": True,
+            "target_vol": 0.15,
+            "vol_lookback": 20,
+            "rebalance_band": 0.0,
+            "fee_rate": 0.001,
+            "slippage_rate": 0.001,
+            "per_coin_cap": 0.25,
+            "gross_cap": 0.60,
+        }
+
+    n = 420
+    close = [100 + i for i in range(n)]
+    frame = {
+        "date": [f"{i:04d}" for i in range(n)],
+        "high": [price + 1 for price in close],
+        "low": [max(price - 1, 1) for price in close],
+        "close": close,
+    }
+    bot = EnsembleTrendBot(Config(), allocated_equity=9000, trading_mode="live")
+    assert bot.trading_mode == "paper"
+    orders = bot.run_daily_decision({"BTCUSDT": frame}, frame["date"][-1])
+    assert orders
+    assert orders[0]["side"] == "buy"
+    assert orders[0]["mode"] == "paper"
+    assert orders[0]["price"] > orders[0]["signal_price"]
+    assert bot.run_daily_decision({"BTCUSDT": frame}, frame["date"][-1]) == []

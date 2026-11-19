@@ -121,6 +121,10 @@ def token_info_from_dexscreener(
         liquidity = float((best.get("liquidity") or {}).get("usd") or 0)
     except (TypeError, ValueError):
         liquidity = 0.0
+    txns = best.get("txns") if isinstance(best.get("txns"), dict) else {}
+    window = txns.get("h24") or txns.get("h1") or {}
+    if not isinstance(window, dict):
+        window = {}
     return TokenInfo(
         symbol=str(symbol)[:24] or mint[:6],
         address=mint,
@@ -131,6 +135,9 @@ def token_info_from_dexscreener(
         source="dexscreener",
         dex=str(best.get("dexId") or ""),
         graduated=str(best.get("dexId") or "").lower() in {"pumpswap", "raydium"},
+        pair_address=str(best.get("pairAddress") or ""),
+        buy_count=int(window.get("buys") or 0),
+        sell_count=int(window.get("sells") or 0),
     )
 
 

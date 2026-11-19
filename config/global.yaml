@@ -54,8 +54,8 @@ persistence:
 
 bots:
   - name: ensemble_trend
-    # Left off because the pre-set backtest did not pass. The code is still here.
-    enabled: false
+    # Paper forward test. The saved backtest did not pass every rule.
+    enabled: true
     config_file: config/ensemble_trend.yaml
   - name: trend_bot
     enabled: false

@@ -19,6 +19,7 @@ class Position:
     token_address: str = ""
     source: str = ""
     original_amount: float = 0.0
+    peak_price: float = 0.0
     take_profit_3: float | None = None
     tp1_done: bool = False
     tp2_done: bool = False
@@ -129,9 +130,9 @@ class SniperRiskManager:
             symbol=symbol,
             amount=amount,
             entry_price=entry_price,
-            take_profit_1=entry_price * (1 + self.take_profit_1),
-            take_profit_2=entry_price * (1 + self.take_profit_2),
-            take_profit_3=entry_price * (1 + self.take_profit_3),
+            take_profit_1=entry_price * (1 + self.take_profit_1) if self.take_profit_1 > 0 else None,
+            take_profit_2=entry_price * (1 + self.take_profit_2) if self.take_profit_2 > 0 else None,
+            take_profit_3=entry_price * (1 + self.take_profit_3) if self.take_profit_3 > 0 else None,
             stop_loss=entry_price * (1 - self.stop_loss),
             token_address=token_address,
             source=source,

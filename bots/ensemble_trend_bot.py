@@ -12,6 +12,19 @@ from core.portfolio_guard import PortfolioGuard
 logger = logging.getLogger(__name__)
 
 
+def _btc_above_average(frame: dict, window: int = 200) -> dict[str, bool]:
+    closes = frame.get("close") or []
+    dates = frame.get("date") or []
+    allowed = {}
+    for i, date in enumerate(dates):
+        if i < window:
+            allowed[date] = False
+            continue
+        average = sum(closes[i - window : i]) / window
+        allowed[date] = closes[i] > average
+    return allowed
+
+
 class EnsembleTrendBot:
     def __init__(self, config, allocated_equity: float, trading_mode: str = "paper") -> None:
         self.config = config
@@ -25,7 +38,9 @@ class EnsembleTrendBot:
         self.guard: PortfolioGuard | None = None
         self.weights: dict[str, float] = {}
         self.last_prices: dict[str, float] = {}
-        self.status_note = "Waiting for the first daily check."
+        self.paper_orders: list[dict] = []
+        self.last_decision_date: str | None = None
+        self.status_note = "Paper forward test - did not pass all backtest criteria yet"
         self._task: asyncio.Task | None = None
 
     @classmethod
@@ -62,9 +77,69 @@ class EnsembleTrendBot:
                 self.status_note = f"Daily check failed: {exc}"
                 logger.warning("ensemble_rebalance_failed %s", exc)
             try:
-                await asyncio.sleep(6 * 60 * 60)
+                # Wake hourly, but a new paper trade is allowed only once per daily candle.
+                await asyncio.sleep(60 * 60)
             except asyncio.CancelledError:
                 raise
+
+    def run_daily_decision(self, coins: dict, decision_date: str) -> list[dict]:
+        """Place paper buys and sells for one daily bar. The same date does nothing twice."""
+        if not decision_date or decision_date == self.last_decision_date:
+            return []
+        params = self._params()
+        regime = None
+        if self.config.parameters.get("regime_filter") and "BTCUSDT" in coins:
+            regime = _btc_above_average(coins["BTCUSDT"])
+        result = simulate_portfolio(coins, params, initial_equity=max(self.equity, 1.0), regime=regime)
+        scale = self.guard.exposure_scale(self.name) if self.guard else 1.0
+        targets = {symbol: weight * scale for symbol, weight in result.ending_weights.items()}
+        orders = []
+        for symbol, new_weight in targets.items():
+            old_weight = self.weights.get(symbol, 0.0)
+            frame = coins.get(symbol) or {}
+            closes = frame.get("close") or []
+            price = closes[-1] if closes else self.last_prices.get(symbol)
+            if not price or price <= 0:
+                continue
+            if abs(new_weight - old_weight) < 1e-4:
+                self.last_prices[symbol] = price
+                continue
+            side = "buy" if new_weight > old_weight else "sell"
+            usd = abs(new_weight - old_weight) * self.equity
+            fill = price * (1.0 + params.cost if side == "buy" else 1.0 - params.cost)
+            orders.append(
+                {
+                    "symbol": symbol,
+                    "side": side,
+                    "usd": round(usd, 2),
+                    "price": fill,
+                    "signal_price": price,
+                    "mode": "paper",
+                    "date": decision_date,
+                }
+            )
+            self.last_prices[symbol] = price
+        self.weights = targets
+        self.last_decision_date = decision_date
+        self.paper_orders.extend(orders)
+        if self.guard is not None:
+            self.guard.update_bot(self.name, self.equity)
+            self.guard.update_portfolio(self.equity)
+        blocked = regime is not None and not regime.get(decision_date, False)
+        if blocked and not any(weight > 0 for weight in targets.values()):
+            self.status_note = (
+                "Paper forward test - did not pass all backtest criteria yet. "
+                "Bitcoin is under its 200-day average, so this bot stays in cash."
+            )
+        elif orders:
+            self.status_note = (
+                "Paper forward test - did not pass all backtest criteria yet. "
+                f"Last daily paper fills: {len(orders)}."
+            )
+        else:
+            self.status_note = "Paper forward test - did not pass all backtest criteria yet. No weight change today."
+        logger.info("ensemble_paper_orders %s", orders)
+        return orders
 
     def _rebalance(self) -> None:
         symbols = {
@@ -75,25 +150,8 @@ class EnsembleTrendBot:
         }
         data = ensure_cache(symbols)
         coins = {symbol: frame_from_rows(rows) for symbol, rows in data.items() if rows}
-        params = self._params()
-        regime = None
-        if self.config.parameters.get("regime_filter"):
-            from backtest.harness import _regime_map
-            regime = _regime_map(data["BTCUSDT"])
-        result = simulate_portfolio(coins, params, initial_equity=self.allocated_equity, regime=regime)
-        scale = 1.0
-        if self.guard is not None:
-            self.guard.update_bot(self.name, self.equity)
-            self.guard.update_portfolio(self.equity)
-            scale = self.guard.exposure_scale(self.name)
-        self.weights = {symbol: weight * scale for symbol, weight in result.ending_weights.items()}
-        for symbol, frame in coins.items():
-            if frame["close"]:
-                self.last_prices[symbol] = frame["close"][-1]
-        self.status_note = (
-            f"Paper weights updated. Risk state {self.guard.state if self.guard else 'normal'}."
-        )
-        logger.info("ensemble_weights %s", {key: round(value, 3) for key, value in self.weights.items()})
+        latest = max(frame["date"][-1] for frame in coins.values() if frame.get("date"))
+        self.run_daily_decision(coins, latest)
 
     def _params(self) -> EnsembleParams:
         raw = self.config.parameters

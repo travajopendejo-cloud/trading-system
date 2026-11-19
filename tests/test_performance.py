@@ -75,14 +75,14 @@ def test_sniper_limits_scale_with_its_slice_and_stay_paper():
     )
     assert small["capital"]["max_position_usd"] == 100
     assert small["capital"]["daily_loss_limit_usd"] == 200
-    assert small["capital"]["max_open_positions"] == 2
+    assert small["capital"]["max_open_positions"] == 3
 
     large = scale_sniper_config(
         {"capital": {"initial": 100, "max_position_usd": 10, "max_open_positions": 3, "daily_loss_limit_usd": 20}},
         allocated_usd=3000,
         share=0.30,
     )
-    assert large["capital"]["max_open_positions"] == 5
+    assert large["capital"]["max_open_positions"] == 3
     assert large["capital"]["max_position_usd"] == 300
 
 
@@ -142,8 +142,13 @@ def test_dashboard_reads_real_allocation_and_closed_trades():
     assert trend["win_rate_pct"] == 100.0
     assert page["risk_guard"]["state"] == "normal"
     assert "Performance" in DASHBOARD_HTML
+    assert "Risk mode: Conservative" in DASHBOARD_HTML
+    assert "Paper forward test - did not pass all backtest criteria yet" in DASHBOARD_HTML
+    assert "Meme sniper skipped trades" in DASHBOARD_HTML
     assert "/performance" in DASHBOARD_HTML
     assert "portfolio_share" in PERFORMANCE_HTML
+    assert "Risk mode: Conservative" in PERFORMANCE_HTML
+    assert "Paper forward test - did not pass all backtest criteria yet" in PERFORMANCE_HTML
     assert "Win rate" in PERFORMANCE_HTML
     assert "/static/dagobert-bg.webp" in DASHBOARD_HTML
     assert "background-size: cover" in DASHBOARD_HTML

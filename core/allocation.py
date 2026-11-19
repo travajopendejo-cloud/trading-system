@@ -67,8 +67,8 @@ def scale_sniper_config(config: dict[str, Any], allocated_usd: float, share: flo
     """Turn the sniper's $100 paper shape into limits for its real portfolio slice.
 
     Position size and the daily loss limit grow in proportion to the dollars.
-    The number of open positions grows with the share, and stays between 1 and 6.
-    The result is always paper mode.
+    Dollar limits grow with the allocated dollars. The open-position count stays
+    at the configured cap. The result is always paper mode.
     """
     scaled = copy.deepcopy(config)
     scaled["mode"] = "paper"
@@ -78,11 +78,9 @@ def scale_sniper_config(config: dict[str, Any], allocated_usd: float, share: flo
         reference = 100.0
     allocated = max(0.0, float(allocated_usd))
     growth = allocated / reference if allocated else 1.0
-    clamped = clamp_sniper_share(share)
-    base_positions = int(capital.get("max_open_positions", 3) or 3)
-    # The tiny extra avoids 4.999999 becoming 4 when the share is exactly 30%.
-    positions = int(base_positions * (clamped / DEFAULT_SNIPER_SHARE) + 0.5 + 1e-6)
-    positions = min(6, max(1, positions))
+    clamp_sniper_share(share)
+    # The open-position count is a hard cap from config, not something that grows with the share.
+    positions = max(1, int(capital.get("max_open_positions", 2) or 2))
     capital["initial"] = round(allocated, 2)
     capital["max_position_usd"] = round(float(capital.get("max_position_usd", 10)) * growth, 2)
     capital["daily_loss_limit_usd"] = round(float(capital.get("daily_loss_limit_usd", 20)) * growth, 2)
