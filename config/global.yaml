@@ -18,11 +18,12 @@ risk:
   max_open_positions: 12
 
 capital_allocation:
-  # How the other bots split what is left AFTER the meme sniper's share.
-  # These three numbers are weights. They do not have to include the sniper.
-  trend_bot: 0.35
-  mean_reversion_bot: 0.35
-  breakout_bot: 0.30
+  # Weights for the share left after the meme sniper.
+  # The old trend, mean-reversion and breakout bots stay in the repo but at 0.
+  ensemble_trend: 1.0
+  trend_bot: 0
+  mean_reversion_bot: 0
+  breakout_bot: 0
 
 logging:
   level: INFO
@@ -52,21 +53,25 @@ persistence:
   equity_snapshot_interval_sec: 60
 
 bots:
+  - name: ensemble_trend
+    # Left off because the pre-set backtest did not pass. The code is still here.
+    enabled: false
+    config_file: config/ensemble_trend.yaml
   - name: trend_bot
-    enabled: true
+    enabled: false
     config_file: config/trend_bot.yaml
   - name: mean_reversion_bot
-    enabled: true
+    enabled: false
     config_file: config/mean_reversion_bot.yaml
   - name: breakout_bot
-    enabled: true
+    enabled: false
     config_file: config/breakout_bot.yaml
 
 # Paper-only Solana meme sniper.
-# portfolio_share is the slice of the whole account. 0.20 means 20%.
-# The smallest allowed share is 0.10 and the largest is 0.30.
-# You can also write 20 or "20%". Set MEME_SNIPER_ENABLED=false to turn it off.
+# portfolio_share is this bot's slice of the whole paper account.
+# 0.10 means 10%. The smallest allowed share is 0.10 and the largest is 0.30.
+# Set MEME_SNIPER_ENABLED=false to turn the sniper off.
 meme_sniper:
   enabled: true
   config_file: meme_sniper/config.yaml
-  portfolio_share: 0.20
+  portfolio_share: 0.10

@@ -18,7 +18,11 @@ class Position:
     stop_loss: float | None = None
     token_address: str = ""
     source: str = ""
+    original_amount: float = 0.0
+    take_profit_3: float | None = None
     tp1_done: bool = False
+    tp2_done: bool = False
+    tp3_done: bool = False
 
 
 @dataclass
@@ -55,9 +59,10 @@ class SniperRiskManager:
         max_position_usd: float = 10.0,
         max_open_positions: int = 3,
         daily_loss_limit: float = 20.0,
-        take_profit_1: float = 0.80,
-        take_profit_2: float = 1.60,
-        stop_loss: float = 0.35,
+        take_profit_1: float = 1.0,
+        take_profit_2: float = 3.0,
+        take_profit_3: float = 7.0,
+        stop_loss: float = 0.25,
     ):
         self.initial_capital = initial_capital
         self.capital = initial_capital
@@ -66,6 +71,7 @@ class SniperRiskManager:
         self.daily_loss_limit = daily_loss_limit
         self.take_profit_1 = take_profit_1
         self.take_profit_2 = take_profit_2
+        self.take_profit_3 = take_profit_3
         self.stop_loss = stop_loss
         self.positions: dict[str, Position] = {}
         self.closed_trades: list[ClosedTrade] = []
@@ -125,9 +131,11 @@ class SniperRiskManager:
             entry_price=entry_price,
             take_profit_1=entry_price * (1 + self.take_profit_1),
             take_profit_2=entry_price * (1 + self.take_profit_2),
+            take_profit_3=entry_price * (1 + self.take_profit_3),
             stop_loss=entry_price * (1 - self.stop_loss),
             token_address=token_address,
             source=source,
+            original_amount=amount,
         )
         self.positions[key] = pos
         return pos
@@ -173,22 +181,21 @@ class SniperRiskManager:
             self.halted = True
             self.halt_reason = f"Daily loss limit hit: {self.daily_pnl:.2f}"
 
-    def check_exits(self, key: str, current_price: float) -> str | None:
-        """Return 'tp1', 'tp2', 'sl', or None. Take-profit 1 fires only once."""
+    def check_exits(self, key: str, current_price: float) -> list[str]:
+        """Levels crossed now. A stop replaces the profit ladder."""
         pos = self.positions.get(key)
         if not pos or current_price <= 0:
-            return None
+            return []
         if pos.stop_loss is not None and current_price <= pos.stop_loss:
-            return "sl"
-        if pos.take_profit_2 is not None and current_price >= pos.take_profit_2:
-            return "tp2"
-        if (
-            not pos.tp1_done
-            and pos.take_profit_1 is not None
-            and current_price >= pos.take_profit_1
-        ):
-            return "tp1"
-        return None
+            return ["sl"]
+        hits = []
+        if pos.take_profit_3 is not None and not pos.tp3_done and current_price >= pos.take_profit_3:
+            hits.append("tp3")
+        if pos.take_profit_2 is not None and not pos.tp2_done and current_price >= pos.take_profit_2:
+            hits.append("tp2")
+        if pos.take_profit_1 is not None and not pos.tp1_done and current_price >= pos.take_profit_1:
+            hits.append("tp1")
+        return hits
 
     def get_closed_trades(self, limit: int = 15) -> list[ClosedTrade]:
         return list(reversed(self.closed_trades[-limit:]))

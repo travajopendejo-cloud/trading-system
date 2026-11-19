@@ -19,11 +19,12 @@ capital:
   daily_loss_limit_usd: 20       # 20% of the slice, then no new trades that day
 
 risk:
-  take_profit_1: 0.80            # +80%
-  take_profit_1_size: 0.50       # Sell 50% at the first target
-  take_profit_2: 1.60            # +160%
-  stop_loss: 0.35                # -35%
-  time_stop_minutes: 12          # Close a paper trade that is still open after 12 minutes
+  take_profit_1: 1.0             # 2x, sell one third
+  take_profit_2: 3.0             # 4x, sell one third
+  take_profit_3: 7.0             # 8x, sell the last third
+  take_profit_size: 0.333333
+  stop_loss: 0.25                # -25%
+  time_stop_minutes: 0           # off; a 12-minute stop cannot reach 2x
 
 sources:
   discovery: true                # New tokens from DexScreener, and pump.fun when it answers
@@ -39,8 +40,8 @@ filters:
   max_dev_buy_pct: 8.0
   max_bundle_pct: 12.0
   max_top_holder_pct: 45.0       # Used when holder data could be read
-  max_top10_holders_pct: 70.0
-  min_liquidity_usd: 800
+  max_top10_holders_pct: 30.0    # skip when the top 10 own more than this
+  min_liquidity_usd: 50000       # post-migration coins only; $800 was too low
   max_sniper_wallets: 15
   max_price_impact_pct: 25.0     # Reject a token whose small sell moves the price more than this
   require_safety_check: true     # Never buy when mint/freeze data was not read
@@ -48,9 +49,13 @@ filters:
   # The free public RPC often refuses the holder lookup. High concentration is still
   # rejected whenever the lookup works. Set this to true after you add HELIUS_API_KEY
   # or SOLANA_RPC_URL if you want to skip every token whose holders could not be read.
-  require_holder_data: false
+  require_graduated: true        # PumpSwap or Raydium only, not the bonding curve
+  require_holder_data: true      # skip the buy when holder data cannot be read
 
 execution:
-  slippage: 0.25
-  priority_fee: "high"
+  # Paper fills use the price we actually see (already up to one poll late)
+  # and then add the fee and slippage below. This is not a live order.
+  fee_rate: 0.001
+  slippage_rate: 0.01
+  delay_seconds: 45
   chain: "solana"

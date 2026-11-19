@@ -1,0 +1,27 @@
+name: ensemble_trend
+strategy: donchian_ensemble
+enabled: true
+
+# Daily Binance spot candles. Same public source as the backtest. Paper only.
+symbols:
+  - BTC/USDT
+  - ETH/USDT
+  - SOL/USDT
+  - HYPE/USDT
+
+timeframe: 1d
+
+parameters:
+  target_vol: 0.25
+  vol_lookback: 90
+  rebalance_band: 0.20
+  fee_rate: 0.001
+  slippage_rate: 0.001
+  per_coin_cap: 0.40
+  gross_cap: 1.0
+  # Optional. Leave false unless a separate backtest says to turn one on.
+  regime_filter: false
+  funding_filter: false
+
+risk:
+  max_positions: 4

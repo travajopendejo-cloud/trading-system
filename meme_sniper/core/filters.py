@@ -20,6 +20,8 @@ class TokenInfo:
     age_seconds: float = 0.0
     name: str = ""
     source: str = ""
+    dex: str = ""
+    graduated: bool = False
     decimals: int = 6
     supply_ui: float = 0.0
     # None means "we could not check". False means the check failed.
@@ -46,6 +48,7 @@ class TokenFilter:
         self.require_safety_check = bool(filters.get("require_safety_check", True))
         self.require_sell_route = bool(filters.get("require_sell_route", True))
         self.require_holder_data = bool(filters.get("require_holder_data", False))
+        self.require_graduated = bool(filters.get("require_graduated", False))
 
     def is_valid(self, token: TokenInfo) -> tuple[bool, str]:
         """Return (allowed, reason). A buy is allowed only when the reason is a pass."""
@@ -61,6 +64,9 @@ class TokenFilter:
 
         if token.freeze_revoked is not True:
             return False, "Freeze authority is on, so sells can be frozen"
+
+        if self.require_graduated and not token.graduated:
+            return False, "Not a graduated pump.fun token"
 
         if token.liquidity_usd < self.min_liquidity_usd:
             return False, f"Liquidity too low (${token.liquidity_usd:.0f})"

@@ -129,6 +129,8 @@ def token_info_from_dexscreener(
         age_seconds=age_seconds,
         name=str(name)[:48],
         source="dexscreener",
+        dex=str(best.get("dexId") or ""),
+        graduated=str(best.get("dexId") or "").lower() in {"pumpswap", "raydium"},
     )
 
 

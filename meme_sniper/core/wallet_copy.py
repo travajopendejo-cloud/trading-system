@@ -4,6 +4,11 @@ Addresses were checked on Solana mainnet on 2026-11-19 with the public RPC
 (account exists, SOL balance, token accounts) plus public tracker pages.
 Wallets that did not show real meme-coin trading were disabled.
 No replacement addresses were added.
+
+Kimchi (@kimchi1x) was reviewed in the strategy report and is not on this list.
+The three active names below still need a fresh check for side wallets and
+for an average hold longer than 30 minutes. Until that hold time is measured,
+the copier will not follow them.
 """
 
 from __future__ import annotations
@@ -24,6 +29,9 @@ class TrackedWallet:
     enabled: bool = True
     # True when the account exists and shows meme-coin trading activity.
     checks_out: bool = False
+    # None means we have not measured it. Copying requires more than 30 minutes.
+    avg_hold_minutes: float | None = None
+    needs_reverification: bool = False
 
 
 @dataclass
@@ -50,6 +58,7 @@ TRACKED_WALLETS: list[TrackedWallet] = [
         max_copy_usd=90.0,
         enabled=True,
         checks_out=True,
+        needs_reverification=True,
     ),
     TrackedWallet(
         address="4vw54BmAogeRV3vPKWyFet5yf8DTLcREzdSzx4rw9Ud9",
@@ -62,6 +71,7 @@ TRACKED_WALLETS: list[TrackedWallet] = [
         max_copy_usd=85.0,
         enabled=True,
         checks_out=True,
+        needs_reverification=True,
     ),
     TrackedWallet(
         address="5dzH7gh5FjtrxUwtfBufJyTBA4fyCUGheZsdYQsE9vag",
@@ -75,6 +85,7 @@ TRACKED_WALLETS: list[TrackedWallet] = [
         max_copy_usd=80.0,
         enabled=True,
         checks_out=True,
+        needs_reverification=True,
     ),
     TrackedWallet(
         address="93WbteZH6nrWeHd5JT6mJE5VHbWcCTDZzzqqnpZ98V9G",
@@ -137,6 +148,14 @@ class WalletCopyManager:
         if wallet is None:
             return None
         if entry_price <= 0 or size_usd < min_wallet_buy_usd:
+            return None
+        hold = wallet.avg_hold_minutes
+        if hold is None or hold <= 30:
+            logger.info(
+                "Not copying %s. Average hold is %s; need more than 30 minutes, and the wallet still needs a fresh check.",
+                wallet.name,
+                "unknown" if hold is None else f"{hold:.0f} minutes",
+            )
             return None
 
         copy_size = float(wallet.max_copy_usd)

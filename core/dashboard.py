@@ -111,6 +111,11 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <span class="mode-badge" id="mode">—</span>
   </div>
 
+  <div class="card" id="risk-guard" style="margin-bottom: 16px;">
+    <h2>Risk brakes</h2>
+    <div id="risk-guard-body" style="color:var(--muted)">Loading…</div>
+  </div>
+
   <div class="card" style="margin-bottom: 20px;">
     <h2>Portfolio split</h2>
     <div id="allocation-list"></div>
@@ -208,6 +213,15 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       ddEl.className = 'stat' + (dd > 5 ? ' red' : dd > 2 ? ' yellow' : '');
 
       document.getElementById('positions-count').textContent = data.open_positions ?? 0;
+
+      const guardEl = document.getElementById('risk-guard-body');
+      if (guardEl) {
+        const guard = data.risk_guard || {};
+        const paused = (guard.paused_bots || []).join(', ');
+        guardEl.textContent = (guard.label || 'Normal. Full paper size.')
+          + (guard.drawdown_pct == null ? '' : ' Drawdown ' + Number(guard.drawdown_pct).toFixed(1) + '%.')
+          + (paused ? ' Paused: ' + paused + '.' : '');
+      }
 
       const allocEl = document.getElementById('allocation-list');
       if (allocEl) {

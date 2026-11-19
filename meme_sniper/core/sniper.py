@@ -33,15 +33,19 @@ class MemeSniper:
             max_position_usd=float(capital_cfg.get("max_position_usd", 10)),
             max_open_positions=int(capital_cfg.get("max_open_positions", 3)),
             daily_loss_limit=float(capital_cfg.get("daily_loss_limit_usd", 20)),
-            take_profit_1=float(risk_cfg.get("take_profit_1", 0.80)),
-            take_profit_2=float(risk_cfg.get("take_profit_2", 1.60)),
-            stop_loss=float(risk_cfg.get("stop_loss", 0.35)),
+            take_profit_1=float(risk_cfg.get("take_profit_1", 1.0)),
+            take_profit_2=float(risk_cfg.get("take_profit_2", 3.0)),
+            take_profit_3=float(risk_cfg.get("take_profit_3", 7.0)),
+            stop_loss=float(risk_cfg.get("stop_loss", 0.25)),
         )
         self.filters = TokenFilter(config)
         self.executor = Executor(mode="paper")
+        execution = config.get("execution") or {}
+        self.executor.cost_rate = float(execution.get("fee_rate", 0.0)) + float(execution.get("slippage_rate", 0.0))
+        self.executor.delay_seconds = float(execution.get("delay_seconds", 0.0))
         self.wallet_copy = WalletCopyManager(risk_manager=self.risk)
-        self.time_stop_minutes = float(risk_cfg.get("time_stop_minutes", 12))
-        fraction = float(risk_cfg.get("take_profit_1_size", 0.50))
+        self.time_stop_minutes = float(risk_cfg.get("time_stop_minutes", 0))
+        fraction = float(risk_cfg.get("take_profit_size", risk_cfg.get("take_profit_1_size", 1 / 3)))
         self.tp1_fraction = min(0.9, max(0.1, fraction))
 
     def evaluate_token(self, token: TokenInfo) -> tuple[bool, str]:
@@ -94,23 +98,31 @@ class MemeSniper:
             return None
         moment = now or datetime.now(timezone.utc)
         age_minutes = (moment - pos.entry_time).total_seconds() / 60.0
-        if age_minutes >= self.time_stop_minutes:
+        if self.time_stop_minutes > 0 and age_minutes >= self.time_stop_minutes:
             self._exit_all(key, current_price, "time", moment)
             return "time"
-        signal = self.risk.check_exits(key, current_price)
-        if signal == "tp1":
-            sell_amount = pos.amount * self.tp1_fraction
-            order = self.executor.sell(pos.symbol, sell_amount, current_price)
+        signals = self.risk.check_exits(key, current_price)
+        if "sl" in signals:
+            self._exit_all(key, current_price, "sl", moment)
+            return "sl"
+        last = None
+        original = pos.original_amount or pos.amount
+        chunk = original * self.tp1_fraction
+        for name in ("tp1", "tp2", "tp3"):
+            if name not in signals:
+                continue
+            current = self.risk.positions.get(key)
+            if current is None:
+                break
+            sell_amount = current.amount if name == "tp3" else min(chunk, current.amount)
+            order = self.executor.sell(current.symbol, sell_amount, current_price)
             if order["status"] != "filled":
-                return None
-            pos.tp1_done = True
-            self.risk.reduce_position(key, sell_amount, current_price, "tp1", now=moment)
-            logger.info("TP1 hit on %s – sold %.0f%%", pos.symbol, self.tp1_fraction * 100)
-            return "tp1"
-        if signal in ("tp2", "sl"):
-            self._exit_all(key, current_price, signal, moment)
-            return signal
-        return None
+                return last
+            setattr(current, f"{name}_done", True)
+            self.risk.reduce_position(key, sell_amount, order["price"], name, now=moment)
+            logger.info("%s hit on %s – sold one third", name.upper(), current.symbol)
+            last = name
+        return last
 
     def dashboard_positions(self) -> list[dict]:
         rows = []
