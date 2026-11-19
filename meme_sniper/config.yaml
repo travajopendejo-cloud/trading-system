@@ -1,27 +1,53 @@
-# Meme Sniper Configuration
-mode: "paper"                    # paper | live
+# Meme sniper configuration.
+# This bot is paper-only. If this file says anything else, the program still stays in paper mode.
+# It does not use a private key and it cannot send a real transaction.
+
+mode: "paper"
+
+# Optional Render environment variables (Dashboard → your service → Environment):
+#   HELIUS_API_KEY        Better wallet tracking. Leave unset to use the free public Solana RPC.
+#   SOLANA_RPC_URL        Your own Solana RPC URL, if you have one. This overrides the public RPC.
+#   MEME_SNIPER_ENABLED   Set to false to turn this bot off without editing code.
 
 capital:
-  initial: 100                   # Starting capital in USD
-  max_position_usd: 10           # Max $ per trade
+  initial: 100                   # Paper dollars. This is not real money.
+  max_position_usd: 10           # Max paper $ per trade
   max_open_positions: 3
-  daily_loss_limit_usd: 20       # Stop trading for the day if lost this much
+  daily_loss_limit_usd: 20       # Stop new paper trades for the day after this loss
 
 risk:
   take_profit_1: 0.80            # +80%
-  take_profit_1_size: 0.50       # Sell 50% at TP1
+  take_profit_1_size: 0.50       # Sell 50% at the first target
   take_profit_2: 1.60            # +160%
   stop_loss: 0.35                # -35%
-  time_stop_minutes: 12
+  time_stop_minutes: 12          # Close a paper trade that is still open after 12 minutes
+
+sources:
+  discovery: true                # New tokens from DexScreener, and pump.fun when it answers
+  wallet_copy: true              # Buys by the enabled tracked wallets
+  poll_interval_seconds: 45
+  max_token_age_minutes: 180     # Ignore discovery tokens older than this
+  max_tokens_per_poll: 3
+  min_wallet_buy_usd: 25         # Ignore wallet buys smaller than this
+  max_signatures_per_poll: 25
+  max_transactions_per_poll: 8
 
 filters:
-  max_dev_buy_pct: 8.0           # Max % of supply the dev bought
-  max_bundle_pct: 12.0           # Max % from bundled wallets
-  max_top10_holders_pct: 35.0
+  max_dev_buy_pct: 8.0
+  max_bundle_pct: 12.0
+  max_top_holder_pct: 45.0       # Used when holder data could be read
+  max_top10_holders_pct: 70.0
   min_liquidity_usd: 800
   max_sniper_wallets: 15
+  max_price_impact_pct: 25.0     # Reject a token whose small sell moves the price more than this
+  require_safety_check: true     # Never buy when mint/freeze data was not read
+  require_sell_route: true       # Jupiter must show a sell back to SOL
+  # The free public RPC often refuses the holder lookup. High concentration is still
+  # rejected whenever the lookup works. Set this to true after you add HELIUS_API_KEY
+  # or SOLANA_RPC_URL if you want to skip every token whose holders could not be read.
+  require_holder_data: false
 
 execution:
-  slippage: 0.25                 # 25%
+  slippage: 0.25
   priority_fee: "high"
   chain: "solana"
