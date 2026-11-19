@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
-import time
 from pathlib import Path
 
 import yaml
 
 from core.sniper import MemeSniper
-from core.filters import TokenInfo
+from core.monitor import MockMonitor
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,20 +24,42 @@ def load_config() -> dict:
         return yaml.safe_load(f)
 
 
-def main():
+async def run():
     config = load_config()
     sniper = MemeSniper(config)
+    monitor = MockMonitor()
 
+    logger.info("=" * 50)
     logger.info("Meme Sniper started in %s mode", config.get("mode", "paper"))
     logger.info("Capital: $%.2f | Max position: $%.2f", 
                 sniper.risk.capital, sniper.risk.max_position_usd)
+    logger.info("=" * 50)
 
-    # Placeholder loop – real monitoring will be added next
-    logger.info("Waiting for new tokens... (monitoring not yet connected)")
-    
-    while True:
-        # Later we will plug in real pump.fun / migration feed here
-        time.sleep(10)
+    async for token in monitor.stream_new_tokens():
+        logger.info(
+            "New token detected: %s | Price: %.8f | Liq: $%.0f | Dev: %.1f%%",
+            token.symbol, token.price, token.liquidity_usd, token.dev_buy_pct
+        )
+
+        # Try to open a trade
+        position = sniper.open_trade(token)
+
+        if position:
+            logger.info("→ Position opened on %s", token.symbol)
+
+        # Check existing positions for exits (simple version)
+        for symbol in list(sniper.risk.positions.keys()):
+            # Simulate a random price move for testing
+            import random
+            current_price = sniper.risk.positions[symbol].entry_price * random.uniform(0.7, 2.2)
+            sniper.check_position(symbol, current_price)
+
+
+def main():
+    try:
+        asyncio.run(run())
+    except KeyboardInterrupt:
+        logger.info("Sniper stopped by user")
 
 
 if __name__ == "__main__":
