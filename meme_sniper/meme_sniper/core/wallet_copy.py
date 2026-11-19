@@ -34,38 +34,38 @@ class CopySignal:
     reason: str = ""
 
 
-# Starting list of wallets we want to follow
-# You can expand this list later
+# Real addresses of strong current / known traders
 TRACKED_WALLETS: List[TrackedWallet] = [
     TrackedWallet(
-        address="Naseem_wallet_placeholder",   # Replace with real address later
-        name="Naseem",
-        notes="Big $TRUMP winner (~$53M). Very aggressive early entries.",
-        max_copy_usd=100.0
-    ),
-    TrackedWallet(
-        address="Dingaling_wallet_placeholder",
-        name="Dingaling",
-        notes="Interesting name, Boop.fun founder, solid $TRUMP profits.",
-        max_copy_usd=70.0
-    ),
-    TrackedWallet(
-        address="Hermes_wallet_placeholder",
-        name="Hermes",
-        notes="Currently one of the hottest wallets on leaderboards.",
-        max_copy_usd=80.0
-    ),
-    TrackedWallet(
-        address="Cented_wallet_placeholder",
+        address="CyaE1VxvBrahnPWkqm5VsdCvyS2QmNht2UFrKJHga54o",
         name="Cented",
-        notes="Consistently top performer over many months.",
+        notes="Consistently top performer. High volume, solid long-term results.",
         max_copy_usd=90.0
     ),
     TrackedWallet(
-        address="Decu_wallet_placeholder",
+        address="4vw54BmAogeRV3vPKWyFet5yf8DTLcREzdSzx4rw9Ud9",
         name="Decu",
-        notes="High win rate trader.",
-        max_copy_usd=75.0
+        notes="High win rate trader, currently ranking well on multiple leaderboards.",
+        max_copy_usd=85.0
+    ),
+    TrackedWallet(
+        address="5dzH7gh5FjtrxUwtfBufJyTBA4fyCUGheZsdYQsE9vag",
+        name="Hermes",
+        notes="Frequently tops daily and weekly PnL boards.",
+        max_copy_usd=80.0
+    ),
+    TrackedWallet(
+        address="93WbteZH6nrWeHd5JT6mJE5VHbWcCTDZzzqqnpZ98V9G",
+        name="Naseem",
+        notes="Big $TRUMP winner (linked by Bubblemaps). Uses multiple wallets.",
+        max_copy_usd=100.0
+    ),
+    TrackedWallet(
+        address="9X5n5i1mugTjgGPhqf1KJDt8r4kD8TF3s62ttbxKzFHa",
+        name="Dingaling",
+        notes="Interesting name. More active on ETH; lower confidence on pure Solana sniping.",
+        max_copy_usd=60.0,
+        enabled=False  # Turn on only if you want him
     ),
 ]
 
@@ -99,17 +99,10 @@ class WalletCopyManager:
             return None
 
         # Basic size limit per wallet
-        copy_size = min(size_usd * 0.15, wallet.max_copy_usd)  # Copy only a fraction
+        copy_size = min(size_usd * 0.15, wallet.max_copy_usd)
 
         if copy_size < 15:  # Too small to bother
             return None
-
-        # Here we can later add more advanced filters:
-        # - Token age
-        # - Liquidity
-        # - Dev holdings
-        # - Social signals
-        # - Our own risk limits
 
         signal = CopySignal(
             wallet_name=wallet.name,
