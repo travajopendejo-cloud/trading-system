@@ -269,8 +269,14 @@ class BaseBot:
         else:
             pnl = (entry - exit_price) * amount
 
-        self.risk.record_realized_pnl(pnl)
-        self.risk.remove_position(self.name, symbol)
+        # Record the closed trade in history
+        self.risk.close_position(
+            bot_name=self.name,
+            symbol=symbol,
+            exit_price=exit_price,
+            pnl=pnl,
+        )
+
         del self.open_positions[symbol]
 
         win = pnl > 0
