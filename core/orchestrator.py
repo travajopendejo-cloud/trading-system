@@ -20,6 +20,38 @@ from bots.breakout_bot import BreakoutBot
 
 logger = structlog.get_logger(__name__)
 
+
+class _MemeSniperAdapter:
+    """Lets the dashboard start and stop the paper meme sniper like the other bots."""
+
+    def __init__(self, service: Any) -> None:
+        self.service = service
+        self.name = "meme_sniper"
+        self.running = False
+        self.config = type("Cfg", (), {"symbols": ["paper SOL memes"]})()
+        self._task: asyncio.Task | None = None
+
+    async def start(self) -> None:
+        if self._task and not self._task.done():
+            self.running = True
+            return
+        self.running = True
+        self.service.running = True
+        self._task = asyncio.create_task(self.service.run(), name="meme_sniper")
+
+    async def stop(self) -> None:
+        self.running = False
+        self.service.running = False
+        task = self._task
+        self._task = None
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+
 BOT_REGISTRY = {
     "trend_bot": TrendBot,
     "mean_reversion_bot": MeanReversionBot,
@@ -40,6 +72,7 @@ class Orchestrator:
         self._monitor_task: asyncio.Task | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self.initial_equity = float(global_cfg.trading.get("initial_equity", 10_000))
+        self.meme_sniper = None
 
     async def start(self) -> None:
         logger.info("orchestrator_starting")
@@ -134,6 +167,11 @@ class Orchestrator:
         )
         self.dashboard.start()
 
+        try:
+            await self._start_meme_sniper()
+        except Exception as exc:
+            logger.exception("meme_sniper_not_started", error=str(exc))
+
         await self.telegram.notify_status(
             "System Started",
             f"Mode: {mode}\nBots: {', '.join(self.bots.keys())}\nEquity: {total_equity:.2f}\nDashboard: http://localhost:8080",
@@ -197,6 +235,16 @@ class Orchestrator:
                     "closed_at": t.closed_at.isoformat(),
                 })
 
+        service = getattr(self, "meme_sniper", None)
+        if service is not None:
+            try:
+                positions.extend(service.dashboard_positions())
+                closed_trades.extend(service.dashboard_trades(limit=15))
+            except Exception as exc:
+                logger.warning("meme_sniper_status_failed", error=str(exc))
+        closed_trades.sort(key=lambda row: row.get("closed_at") or "", reverse=True)
+        closed_trades = closed_trades[:15]
+
         equity = self.risk.equity if self.risk else self.initial_equity
         daily_pnl = self.risk.daily_pnl if self.risk else 0.0
         drawdown = self.risk.current_drawdown_pct if self.risk else 0.0
@@ -210,9 +258,57 @@ class Orchestrator:
             "open_positions": len(positions),
             "bots": bots_info,
             "positions": positions,
-            "closed_trades": closed_trades,          # ← NEW
+            "closed_trades": closed_trades,
             "halted": self.risk.halted if self.risk else False,
+            "sniper": self._sniper_status(),
         }
+
+    def _sniper_status(self) -> dict[str, Any]:
+        summary: dict[str, Any] = {
+            "mode": "paper",
+            "enabled": False,
+            "capital": None,
+            "daily_pnl": None,
+            "tracked_wallets": [],
+            "disabled_wallets": [],
+            "last_error": None,
+            "rpc": None,
+            "helius": False,
+        }
+        try:
+            from meme_sniper.core.wallet_copy import TRACKED_WALLETS
+            summary["tracked_wallets"] = [wallet.name for wallet in TRACKED_WALLETS if wallet.enabled]
+            summary["disabled_wallets"] = [wallet.name for wallet in TRACKED_WALLETS if not wallet.enabled]
+        except Exception as exc:
+            summary["last_error"] = str(exc)
+            return summary
+        service = getattr(self, "meme_sniper", None)
+        if service is not None:
+            try:
+                summary.update(service.status_summary())
+            except Exception as exc:
+                summary["last_error"] = str(exc)
+        return summary
+
+    async def _start_meme_sniper(self) -> None:
+        from meme_sniper.core.service import MemeSniperService
+        from meme_sniper.core.settings import load_sniper_config, meme_sniper_enabled
+
+        section = self.cfg.meme_sniper or {}
+        enabled = True
+        config_file = "meme_sniper/config.yaml"
+        if isinstance(section, dict):
+            enabled = bool(section.get("enabled", True))
+            config_file = section.get("config_file", config_file)
+        if not meme_sniper_enabled(enabled):
+            logger.info("meme_sniper_disabled")
+            return
+        service = MemeSniperService(load_sniper_config(config_file))
+        self.meme_sniper = service
+        adapter = _MemeSniperAdapter(service)
+        self.bots["meme_sniper"] = adapter
+        await adapter.start()
+        logger.info("meme_sniper_started", mode="paper")
 
     def _sync_control_bot(self, bot_name: str, action: str) -> dict[str, Any]:
         """Called from the dashboard HTTP thread – schedule coroutine on the main loop."""

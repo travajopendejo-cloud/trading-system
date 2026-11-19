@@ -42,6 +42,7 @@ class GlobalConfig(BaseModel):
     telegram: TelegramConfig
     persistence: dict[str, Any]
     bots: list[dict[str, Any]]
+    meme_sniper: dict[str, Any] = Field(default_factory=dict)
 
 
 class BotRiskConfig(BaseModel):

@@ -60,3 +60,9 @@ bots:
   - name: breakout_bot
     enabled: true
     config_file: config/breakout_bot.yaml
+
+# Paper-only Solana meme sniper. It does not change the other bots' capital.
+# Set MEME_SNIPER_ENABLED=false on Render to turn it off.
+meme_sniper:
+  enabled: true
+  config_file: meme_sniper/config.yaml

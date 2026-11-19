@@ -86,6 +86,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <div>
       <h1>Multi-Bot Trading System</h1>
       <p class="subtitle">Live monitoring & controls · <a class="metrics-link" href="/metrics" target="_blank">Prometheus metrics</a></p>
+      <p class="subtitle" id="sniper-line"></p>
     </div>
     <span class="mode-badge" id="mode">—</span>
   </div>
@@ -154,6 +155,21 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
     function render(data) {
       document.getElementById('mode').textContent = (data.mode || '—').toUpperCase();
+      const sniperLine = document.getElementById('sniper-line');
+      const sniper = data.sniper;
+      if (sniperLine) {
+        if (!sniper) {
+          sniperLine.textContent = '';
+        } else if (sniper.enabled) {
+          const names = (sniper.tracked_wallets || []).join(', ') || 'none';
+          const off = (sniper.disabled_wallets || []).join(', ');
+          const bank = sniper.capital == null ? '' : ' · paper bankroll $' + Number(sniper.capital).toFixed(2);
+          sniperLine.textContent = 'Meme sniper: PAPER only' + bank + ' · watching ' + names + (off ? ' · off: ' + off : '');
+        } else {
+          const off = (sniper.disabled_wallets || []).join(', ');
+          sniperLine.textContent = 'Meme sniper: paper bot is not running' + (off ? ' · off: ' + off : '');
+        }
+      }
 
       const equity = data.equity ?? 0;
       const equityEl = document.getElementById('equity');
@@ -204,7 +220,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
             <td>${p.symbol}</td>
             <td style="color:${p.side === 'long' ? 'var(--green)' : 'var(--red)'}">${p.side}</td>
             <td>${Number(p.amount).toFixed(5)}</td>
-            <td>${Number(p.entry_price).toFixed(2)}</td>
+            <td>${fmtPx(p.entry_price)}</td>
           </tr>`).join('');
 
       // Trade History
@@ -222,8 +238,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
                 <td>${t.symbol}</td>
                 <td style="color:${sideColor}">${t.side}</td>
                 <td>${Number(t.amount).toFixed(5)}</td>
-                <td>${Number(t.entry_price).toFixed(2)}</td>
-                <td>${Number(t.exit_price).toFixed(2)}</td>
+                <td>${fmtPx(t.entry_price)}</td>
+                <td>${fmtPx(t.exit_price)}</td>
                 <td style="color:${pnlColor}">${t.pnl >= 0 ? '+' : ''}${Number(t.pnl).toFixed(2)}</td>
                 <td>${closedTime}</td>
               </tr>`;
@@ -256,6 +272,16 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       } catch (e) {
         console.error(e);
       }
+    }
+
+    function fmtPx(n) {
+      const x = Number(n);
+      if (!isFinite(x)) return '—';
+      const abs = Math.abs(x);
+      if (abs >= 100) return x.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      if (abs >= 1) return x.toLocaleString(undefined, {maximumFractionDigits: 4});
+      if (abs === 0) return '0';
+      return x.toLocaleString(undefined, {maximumFractionDigits: 8});
     }
 
     function fmt(n) {
