@@ -67,8 +67,28 @@ class ExchangeClient:
         return self.exchange
 
     async def fetch_ohlcv(self, symbol: str, timeframe: str = "15m", limit: int = 200, since: int | None = None) -> list[list]:
-        ex = self._ensure_connected()
-        return await ex.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit, since=since)
+        primary_error: Exception | None = None
+        try:
+            ex = self._ensure_connected()
+            candles = await ex.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit, since=since)
+            if candles:
+                return candles
+        except Exception as exc:
+            primary_error = exc
+            logger.warning("ohlcv_failed symbol=%s error=%s", symbol, exc)
+        # Futures testnet does not list every coin. Public Binance spot candles
+        # cover SOL and HYPE with no API key. Orders are never sent from here.
+        try:
+            from core.public_klines import fetch_public_klines
+            candles = await asyncio.to_thread(fetch_public_klines, symbol, timeframe, limit)
+            if candles:
+                logger.info("ohlcv_public_fallback symbol=%s candles=%s", symbol, len(candles))
+                return candles
+        except Exception as exc:
+            logger.warning("ohlcv_public_fallback_failed symbol=%s error=%s", symbol, exc)
+        if primary_error:
+            raise primary_error
+        return []
 
     async def fetch_ticker(self, symbol: str) -> dict[str, Any]:
         ex = self._ensure_connected()

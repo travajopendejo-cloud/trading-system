@@ -10,10 +10,13 @@ mode: "paper"
 #   MEME_SNIPER_ENABLED   Set to false to turn this bot off without editing code.
 
 capital:
-  initial: 100                   # Paper dollars. This is not real money.
-  max_position_usd: 10           # Max paper $ per trade
-  max_open_positions: 3
-  daily_loss_limit_usd: 20       # Stop new paper trades for the day after this loss
+  # These dollar amounts are the shape for a $100 slice.
+  # The main app scales them to the portfolio share in config/global.yaml.
+  # Running this file by itself still uses the $100 paper account below.
+  initial: 100
+  max_position_usd: 10           # 10% of the slice per trade
+  max_open_positions: 3          # grows a little when the share is above 20%
+  daily_loss_limit_usd: 20       # 20% of the slice, then no new trades that day
 
 risk:
   take_profit_1: 0.80            # +80%

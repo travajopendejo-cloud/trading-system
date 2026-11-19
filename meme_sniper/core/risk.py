@@ -161,8 +161,8 @@ class SniperRiskManager:
             token_address=pos.token_address,
         )
         self.closed_trades.append(trade)
-        if len(self.closed_trades) > 50:
-            self.closed_trades = self.closed_trades[-50:]
+        if len(self.closed_trades) > 200:
+            self.closed_trades = self.closed_trades[-200:]
         if pos.amount <= 1e-9:
             self.positions.pop(key, None)
         self._check_daily_loss()

@@ -5,6 +5,11 @@ enabled: true
 symbols:
   - BTC/USDT:USDT
   - ETH/USDT:USDT
+  # Same Binance USDT market as BTC and ETH. SOL and HYPE both have public
+  # SOLUSDT and HYPEUSDT prices. If the futures connection has no candles,
+  # the app reads those public spot candles. No API key is used.
+  - SOL/USDT:USDT
+  - HYPE/USDT:USDT
 
 timeframe: 15m
 lookback_candles: 200
@@ -17,10 +22,12 @@ parameters:
   atr_period: 14
 
 risk:
-  risk_per_trade_pct: 1.0
+  # 0.6% on each of 4 coins is about the same total risk as 1% on the old 2 coins.
+  # Size still shrinks when the stop is wide, because the stop is based on volatility.
+  risk_per_trade_pct: 0.6
   stop_loss_atr_mult: 1.5
   take_profit_atr_mult: 2.5
-  max_positions: 3
+  max_positions: 4
   trailing_stop: false
 
 execution:

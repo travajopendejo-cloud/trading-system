@@ -19,6 +19,21 @@ from strategies.base import BaseStrategy, Signal
 logger = structlog.get_logger(__name__)
 
 
+def trail_stop(side: str, extreme: float, stop: float | None, distance: float) -> float | None:
+    """Move a stop only in the profitable direction. distance is the trail gap."""
+    if distance <= 0:
+        return stop
+    if side == "long":
+        candidate = extreme - distance
+        if stop is None or candidate > stop:
+            return candidate
+        return stop
+    candidate = extreme + distance
+    if stop is None or candidate < stop:
+        return candidate
+    return stop
+
+
 class BaseBot:
     def __init__(
         self,
@@ -179,12 +194,20 @@ class BaseBot:
             bot_name=self.name,
         )
         self.risk.add_position(pos)
+        trail_distance = None
+        if self.config.risk.trailing_stop and signal.stop_loss:
+            initial_risk = abs(fill_price - float(signal.stop_loss))
+            stop_mult = float(self.config.risk.stop_loss_atr_mult or 1.0)
+            trail_mult = float(self.config.risk.trailing_atr_mult or stop_mult)
+            if stop_mult > 0 and initial_risk > 0:
+                trail_distance = initial_risk * (trail_mult / stop_mult)
         self.open_positions[symbol] = {
             "side": pos.side,
             "amount": size,
             "entry_price": fill_price,
             "stop_loss": signal.stop_loss,
             "take_profit": signal.take_profit,
+            "trail_distance": trail_distance,
             "order_id": order.get("id"),
         }
 
@@ -220,6 +243,11 @@ class BaseBot:
 
         hit_sl = False
         hit_tp = False
+        distance = pos.get("trail_distance")
+        if distance:
+            extreme = high if side == "long" else low
+            pos["stop_loss"] = trail_stop(side, extreme, pos.get("stop_loss"), float(distance))
+            sl = pos.get("stop_loss")
 
         if side == "long":
             if sl and low <= sl:

@@ -18,7 +18,9 @@ parameters:
   min_atr_pct: 0.3
 
 risk:
-  risk_per_trade_pct: 1.2
+  # Entries were fixed, so this bot can actually trade. 0.8% on 3 coins
+  # keeps the book from getting much larger than before.
+  risk_per_trade_pct: 0.8
   stop_loss_atr_mult: 2.0
   take_profit_atr_mult: 3.0
   max_positions: 3

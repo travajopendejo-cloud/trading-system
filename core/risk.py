@@ -151,9 +151,9 @@ class RiskManager:
         )
         self.closed_trades.append(trade)
 
-        # Keep only the last 50 trades to avoid memory growth
-        if len(self.closed_trades) > 50:
-            self.closed_trades = self.closed_trades[-50:]
+        # Keep a few hundred closed trades so the performance page has a curve.
+        if len(self.closed_trades) > 200:
+            self.closed_trades = self.closed_trades[-200:]
 
         self.record_realized_pnl(pnl)
         return pos

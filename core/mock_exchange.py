@@ -26,6 +26,7 @@ class MockExchangeClient:
             "ETH/USDT:USDT": 3_200.0,
             "SOL/USDT:USDT": 150.0,
             "BNB/USDT:USDT": 580.0,
+            "HYPE/USDT:USDT": 67.0,
         }
         self._connected = False
         self.markets = {s: {} for s in self._prices}
