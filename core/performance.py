@@ -73,7 +73,19 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px;
+      color: var(--text); min-height: 100vh; padding: 24px;
+      background: #0b0d12;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background-image: linear-gradient(rgba(8, 10, 16, 0.62), rgba(8, 10, 16, 0.74)), url("/static/dagobert-bg.webp");
+      background-size: cover;
+      background-position: center center;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
     }
     a { color: var(--accent); text-decoration: none; }
     h1 { font-size: 1.5rem; font-weight: 600; }
@@ -86,7 +98,7 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
       padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 600;
     }
     .card {
-      background: var(--card); border: 1px solid var(--border);
+      background: rgba(18, 21, 30, 0.9); border: 1px solid var(--border);
       border-radius: 12px; padding: 18px; margin-bottom: 16px;
     }
     .stats { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
@@ -99,7 +111,11 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
     th { color: var(--muted); font-weight: 500; }
     .split { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     .pill {
+      background: rgba(12, 14, 20, 0.82);
       border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; font-size: 0.8rem;
+    }
+    @media (max-width: 640px) {
+      body { padding: 14px; }
     }
     .section-title { margin: 22px 0 10px; }
   </style>

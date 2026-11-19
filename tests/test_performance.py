@@ -143,6 +143,16 @@ def test_dashboard_reads_real_allocation_and_closed_trades():
     assert "/performance" in DASHBOARD_HTML
     assert "portfolio_share" in PERFORMANCE_HTML
     assert "Win rate" in PERFORMANCE_HTML
+    assert "/static/dagobert-bg.webp" in DASHBOARD_HTML
+    assert "background-size: cover" in DASHBOARD_HTML
+    assert "background-attachment: fixed" in DASHBOARD_HTML
+    assert "background-position: center center" in DASHBOARD_HTML
+    assert "/static/dagobert-bg.webp" in PERFORMANCE_HTML
+    from core.dashboard import STATIC_BG
+    assert STATIC_BG.is_file()
+    assert STATIC_BG.stat().st_size < 300_000
+    assert "money-duck" not in DASHBOARD_HTML
+    assert "money-duck" not in PERFORMANCE_HTML
 
 
 def _trade(bot, symbol, pnl):
