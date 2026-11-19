@@ -5,10 +5,13 @@ from __future__ import annotations
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlparse
 
 from core.performance import PERFORMANCE_HTML
+
+STATIC_BG = Path(__file__).resolve().parent.parent / "static" / "dagobert-bg.webp"
 
 import logging
 logger = logging.getLogger(__name__)
@@ -29,14 +32,29 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px;
+      color: var(--text); min-height: 100vh; padding: 24px;
+      background: #0b0d12;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background-image: linear-gradient(rgba(8, 10, 16, 0.62), rgba(8, 10, 16, 0.74)), url("/static/dagobert-bg.webp");
+      background-size: cover;
+      background-position: center center;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
     }
     h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 4px; }
     .subtitle { color: var(--muted); font-size: 0.875rem; margin-bottom: 24px; }
     .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
     .card {
-      background: var(--card); border: 1px solid var(--border);
+      background: rgba(18, 21, 30, 0.9); border: 1px solid var(--border);
       border-radius: 12px; padding: 20px;
+    }
+    @media (max-width: 640px) {
+      body { padding: 14px; }
     }
     .card h2 {
       font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
@@ -358,6 +376,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send(json.dumps(data).encode(), "application/json")
             except Exception as exc:
                 self._send(json.dumps({"error": str(exc)}).encode(), "application/json", 500)
+        elif path == "/static/dagobert-bg.webp":
+            if STATIC_BG.is_file():
+                self._send(STATIC_BG.read_bytes(), "image/webp")
+            else:
+                self.send_error(404)
         elif path == "/metrics":
             try:
                 body = self.get_metrics()
