@@ -17,6 +17,8 @@ from core.dashboard import DashboardServer
 from bots.trend_bot import TrendBot
 from bots.mean_reversion_bot import MeanReversionBot
 from bots.breakout_bot import BreakoutBot
+from core.allocation import portfolio_allocations, scale_sniper_config
+from core.performance import summarize
 
 logger = structlog.get_logger(__name__)
 
@@ -135,7 +137,7 @@ class Orchestrator:
             bot_cfg = load_bot_config(cfg_path)
 
             allocation_pct = self.cfg.capital_allocation.get(name, 0.0)
-            allocated = total_equity * allocation_pct
+            allocated = self._allocation_map().get(name, total_equity * allocation_pct)
 
             bot_cls = BOT_REGISTRY.get(name)
             if not bot_cls:
@@ -164,6 +166,7 @@ class Orchestrator:
             get_status=self.get_status,
             control_bot=self._sync_control_bot,
             get_metrics=self.metrics.generate,
+            get_performance=self.get_performance,
         )
         self.dashboard.start()
 
@@ -261,6 +264,102 @@ class Orchestrator:
             "closed_trades": closed_trades,
             "halted": self.risk.halted if self.risk else False,
             "sniper": self._sniper_status(),
+            "allocation": self._allocation_for_status(),
+        }
+
+    def _sniper_settings(self) -> tuple[bool, float]:
+        from meme_sniper.core.settings import meme_sniper_enabled
+
+        section = self.cfg.meme_sniper or {}
+        enabled = True
+        share = 0.20
+        if isinstance(section, dict):
+            enabled = bool(section.get("enabled", True))
+            share = section.get("portfolio_share", 0.20)
+        return meme_sniper_enabled(enabled), share
+
+    def allocation_rows(self) -> list[dict]:
+        enabled, share = self._sniper_settings()
+        return portfolio_allocations(
+            self.initial_equity,
+            self.cfg.capital_allocation,
+            sniper_share=share,
+            sniper_enabled=enabled,
+        )
+
+    def _allocation_map(self) -> dict[str, float]:
+        return {row["key"]: float(row["usd"]) for row in self.allocation_rows()}
+
+    def _allocation_for_status(self) -> list[dict]:
+        return [
+            {
+                "key": row["key"],
+                "name": row["name"],
+                "pct": round(float(row["pct"]), 1),
+                "usd": round(float(row["usd"]), 2),
+            }
+            for row in self.allocation_rows()
+        ]
+
+    def get_performance(self) -> dict:
+        """Closed-trade results for the performance page."""
+        rows = self.allocation_rows()
+        grouped: dict[str, list[dict]] = {row["key"]: [] for row in rows}
+        combined: list[dict] = []
+
+        def add(bot: str, symbol: str, pnl: float, closed_at) -> None:
+            if hasattr(closed_at, "isoformat"):
+                closed_at = closed_at.isoformat()
+            item = {
+                "bot": bot,
+                "symbol": symbol,
+                "pnl": float(pnl),
+                "closed_at": closed_at or "",
+            }
+            combined.append(item)
+            grouped.setdefault(bot, []).append(item)
+
+        if self.risk:
+            for trade in list(self.risk.closed_trades):
+                add(trade.bot_name, trade.symbol, trade.pnl, trade.closed_at)
+        service = getattr(self, "meme_sniper", None)
+        if service is not None:
+            try:
+                for trade in list(service.sniper.risk.closed_trades):
+                    add("meme_sniper", trade.symbol, trade.pnl, trade.closed_at)
+            except Exception as exc:
+                logger.warning("meme_sniper_performance_failed", error=str(exc))
+
+        starts = {row["key"]: float(row["usd"]) for row in rows}
+        if service is not None:
+            try:
+                starts["meme_sniper"] = float(service.sniper.risk.initial_capital)
+            except Exception:
+                pass
+        for name, bot in self.bots.items():
+            allocated = getattr(bot, "allocated_equity", None)
+            if allocated is not None and name in starts:
+                starts[name] = float(allocated)
+
+        bots = []
+        for row in rows:
+            report = summarize(row["name"], starts.get(row["key"], row["usd"]), grouped.get(row["key"], []))
+            report["key"] = row["key"]
+            report["allocation_pct"] = round(float(row["pct"]), 1)
+            bots.append(report)
+        portfolio = summarize("Whole portfolio", self.initial_equity, combined)
+        sniper_pct = next((row["pct"] for row in rows if row["key"] == "meme_sniper"), 0.0)
+        return {
+            "mode": "paper",
+            "portfolio": portfolio,
+            "bots": bots,
+            "allocation": self._allocation_for_status(),
+            "sniper_share_pct": round(float(sniper_pct), 1),
+            "note": (
+                "Win rate and profit count closed paper trades only. "
+                "A trade that is still open is not a win or a loss yet. "
+                f"The meme sniper is set to {float(sniper_pct):.1f}% of the account."
+            ),
         }
 
     def _sniper_status(self) -> dict[str, Any]:
@@ -303,8 +402,19 @@ class Orchestrator:
         if not meme_sniper_enabled(enabled):
             logger.info("meme_sniper_disabled")
             return
-        service = MemeSniperService(load_sniper_config(config_file))
+        config = load_sniper_config(config_file)
+        allocated = self._allocation_map().get("meme_sniper", 0.0)
+        _enabled, share = self._sniper_settings()
+        config = scale_sniper_config(config, allocated, share)
+        service = MemeSniperService(config)
         self.meme_sniper = service
+        logger.info(
+            "meme_sniper_allocation",
+            usd=round(allocated, 2),
+            max_position=config["capital"]["max_position_usd"],
+            daily_loss=config["capital"]["daily_loss_limit_usd"],
+            max_positions=config["capital"]["max_open_positions"],
+        )
         adapter = _MemeSniperAdapter(service)
         self.bots["meme_sniper"] = adapter
         await adapter.start()

@@ -8,6 +8,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Callable
 from urllib.parse import urlparse
 
+from core.performance import PERFORMANCE_HTML
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -85,10 +87,16 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   <div class="header">
     <div>
       <h1>Multi-Bot Trading System</h1>
-      <p class="subtitle">Live monitoring & controls · <a class="metrics-link" href="/metrics" target="_blank">Prometheus metrics</a></p>
+      <p class="subtitle">Live monitoring & controls · <a class="metrics-link" href="/performance">Performance</a> · <a class="metrics-link" href="/metrics" target="_blank">Prometheus metrics</a></p>
       <p class="subtitle" id="sniper-line"></p>
     </div>
     <span class="mode-badge" id="mode">—</span>
+  </div>
+
+  <div class="card" style="margin-bottom: 20px;">
+    <h2>Portfolio split</h2>
+    <div id="allocation-list"></div>
+    <p class="refresh">The meme sniper's share is <code>portfolio_share</code> in config/global.yaml. Use 0.10 to 0.30. The other bots split the rest.</p>
   </div>
 
   <div class="grid" style="margin-bottom: 20px;">
@@ -182,6 +190,14 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       ddEl.className = 'stat' + (dd > 5 ? ' red' : dd > 2 ? ' yellow' : '');
 
       document.getElementById('positions-count').textContent = data.open_positions ?? 0;
+
+      const allocEl = document.getElementById('allocation-list');
+      if (allocEl) {
+        const alloc = data.allocation || [];
+        allocEl.innerHTML = alloc.length === 0
+          ? '<p style="color:var(--muted)">Allocation appears when the app is running.</p>'
+          : alloc.map(a => `<div class="bot-row"><div class="bot-name">${a.name}</div><div>${Number(a.pct).toFixed(1)}% · ${fmt(a.usd)}</div></div>`).join('');
+      }
 
       const pnl = data.daily_pnl ?? 0;
       const pnlEl = document.getElementById('daily-pnl');
@@ -304,6 +320,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
     get_status: Callable[[], dict[str, Any]] = lambda: {}
     control_bot: Callable[[str, str], dict[str, Any]] = lambda b, a: {}
     get_metrics: Callable[[], bytes] = lambda: b"# no metrics\n"
+    get_performance: Callable[[], dict[str, Any]] = lambda: {}
 
     def log_message(self, format: str, *args: Any) -> None:
         pass
@@ -330,6 +347,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
         elif path == "/api/status":
             try:
                 data = self.get_status()
+                self._send(json.dumps(data).encode(), "application/json")
+            except Exception as exc:
+                self._send(json.dumps({"error": str(exc)}).encode(), "application/json", 500)
+        elif path == "/performance":
+            self._send(PERFORMANCE_HTML.encode(), "text/html; charset=utf-8")
+        elif path == "/api/performance":
+            try:
+                data = self.get_performance()
                 self._send(json.dumps(data).encode(), "application/json")
             except Exception as exc:
                 self._send(json.dumps({"error": str(exc)}).encode(), "application/json", 500)
@@ -365,12 +390,14 @@ class DashboardServer:
         get_status: Callable[[], dict[str, Any]] | None = None,
         control_bot: Callable[[str, str], dict[str, Any]] | None = None,
         get_metrics: Callable[[], bytes] | None = None,
+        get_performance: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self.host = host
         self.port = port
         self._get_status = get_status or (lambda: {})
         self._control_bot = control_bot or (lambda b, a: {"ok": False})
         self._get_metrics = get_metrics or (lambda: b"# no metrics\n")
+        self._get_performance = get_performance or (lambda: {})
         self._server: HTTPServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -379,6 +406,7 @@ class DashboardServer:
         handler.get_status = self._get_status  # type: ignore
         handler.control_bot = self._control_bot  # type: ignore
         handler.get_metrics = self._get_metrics  # type: ignore
+        handler.get_performance = self._get_performance  # type: ignore
 
         self._server = HTTPServer((self.host, self.port), handler)
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)

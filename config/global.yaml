@@ -18,7 +18,8 @@ risk:
   max_open_positions: 12
 
 capital_allocation:
-  # Percentage of total equity allocated to each bot
+  # How the other bots split what is left AFTER the meme sniper's share.
+  # These three numbers are weights. They do not have to include the sniper.
   trend_bot: 0.35
   mean_reversion_bot: 0.35
   breakout_bot: 0.30
@@ -61,8 +62,11 @@ bots:
     enabled: true
     config_file: config/breakout_bot.yaml
 
-# Paper-only Solana meme sniper. It does not change the other bots' capital.
-# Set MEME_SNIPER_ENABLED=false on Render to turn it off.
+# Paper-only Solana meme sniper.
+# portfolio_share is the slice of the whole account. 0.20 means 20%.
+# The smallest allowed share is 0.10 and the largest is 0.30.
+# You can also write 20 or "20%". Set MEME_SNIPER_ENABLED=false to turn it off.
 meme_sniper:
   enabled: true
   config_file: meme_sniper/config.yaml
+  portfolio_share: 0.20

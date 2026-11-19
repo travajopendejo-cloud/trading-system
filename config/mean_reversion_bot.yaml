@@ -16,6 +16,8 @@ parameters:
   rsi_oversold: 30
   rsi_overbought: 70
   atr_period: 14
+  # Stand aside when ADX is this high. That is a trend, not a dip to buy.
+  adx_max: 25
 
 risk:
   risk_per_trade_pct: 0.8
