@@ -1,8 +1,8 @@
 """Drawdown brakes for the paper portfolio.
 
-Conservative mode: a bot pauses after a 10% drop from its own peak.
-The whole portfolio cuts size in half after a 7% drop and goes to cash
-after a 12% drop.
+Moderate mode: a bot pauses after a 15% drop from its own peak.
+The whole portfolio cuts size in half after a 10% drop and goes to cash
+after an 18% drop.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ class PortfolioGuard:
         self.bot_equity[name] = value
         self.bot_peak[name] = max(self.bot_peak.get(name, value), value)
         drop = self.bot_drawdown(name)
-        if drop is not None and drop <= -10:
+        if drop is not None and drop <= -15:
             self.paused_bots.add(name)
         elif name in self.paused_bots and drop is not None and drop > -15:
             # Stay paused. A person has to turn the bot back on.
@@ -48,9 +48,9 @@ class PortfolioGuard:
         drop = self.portfolio_drawdown()
         if drop is None:
             return "normal"
-        if drop <= -12:
+        if drop <= -18:
             return "cash"
-        if drop <= -7:
+        if drop <= -10:
             return "halved"
         return "normal"
 
@@ -70,8 +70,8 @@ class PortfolioGuard:
         drop = self.portfolio_drawdown()
         labels = {
             "normal": "Normal. Full paper size.",
-            "halved": "Portfolio is down 7% or more. New size is cut in half.",
-            "cash": "Portfolio is down 12% or more. Strategy is in cash.",
+            "halved": "Portfolio is down 10% or more. New size is cut in half.",
+            "cash": "Portfolio is down 18% or more. Strategy is in cash.",
         }
         return {
             "state": self.state,

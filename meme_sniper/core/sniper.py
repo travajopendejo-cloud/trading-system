@@ -22,6 +22,9 @@ def assert_paper_only(sniper: "MemeSniper") -> None:
 class MemeSniper:
     def __init__(self, config: dict[str, Any]):
         self.config = config
+        self.leverage = 1.0
+        if float(config.get("leverage", 1) or 1) != 1:
+            logger.warning("Meme sniper ignored a leverage setting. Memes are never leveraged.")
         requested = str(config.get("mode", "paper")).lower()
         if requested != "paper":
             logger.warning("Config asked for %s mode. Forcing paper mode.", requested)

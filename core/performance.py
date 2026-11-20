@@ -2,7 +2,90 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
+
+MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def _win_pct(values: list[float]) -> float | None:
+    if not values:
+        return None
+    wins = sum(1 for value in values if value > 0)
+    return round(wins / len(values) * 100, 1)
+
+
+def calendar_pnl(
+    trades: list[dict[str, Any]],
+    year: int | None = None,
+    bots: list[tuple[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Monthly and year-to-date closed-trade P&L.
+
+    A day or month counts only when a trade closed in it. Flat empty days are
+    left out of the win-rate, so a quiet bot is not called a losing bot.
+    """
+    chosen = int(year if year is not None else datetime.now(timezone.utc).year)
+    prefix = f"{chosen}-"
+    buckets: dict[str, dict[str, Any]] = {}
+
+    def slot(key: str) -> dict[str, Any]:
+        return buckets.setdefault(key, {"months": [0.0] * 12, "seen": set(), "days": {}})
+
+    for trade in trades:
+        closed = str(trade.get("closed_at") or "")
+        if len(closed) < 10 or not closed.startswith(prefix):
+            continue
+        try:
+            month = int(closed[5:7])
+        except ValueError:
+            continue
+        if month < 1 or month > 12:
+            continue
+        pnl = float(trade.get("pnl") or 0)
+        bot = str(trade.get("bot") or "unknown")
+        for key in (bot, "__total__"):
+            item = slot(key)
+            item["months"][month - 1] += pnl
+            item["seen"].add(month)
+            day = closed[:10]
+            item["days"][day] = item["days"].get(day, 0.0) + pnl
+
+    order = list(bots or [])
+    known = {key for key, _name in order}
+    rows = [_calendar_row(label, key, buckets.get(key)) for key, label in order]
+    for key in buckets:
+        if key != "__total__" and key not in known:
+            rows.append(_calendar_row(key, key, buckets[key]))
+    rows.append(_calendar_row("Total", "__total__", buckets.get("__total__")))
+    return {"year": chosen, "months": MONTH_NAMES, "rows": rows}
+
+
+def _calendar_row(label: str, key: str, slot: dict[str, Any] | None) -> dict[str, Any]:
+    if not slot:
+        return {
+            "key": key,
+            "name": label,
+            "months": [None] * 12,
+            "ytd": 0.0,
+            "win_days_pct": None,
+            "win_months_pct": None,
+            "closed_days": 0,
+            "active_months": 0,
+        }
+    months = [round(value, 2) if index in slot["seen"] else None for index, value in enumerate(slot["months"], start=1)]
+    month_values = [slot["months"][month - 1] for month in sorted(slot["seen"])]
+    day_values = list(slot["days"].values())
+    return {
+        "key": key,
+        "name": label,
+        "months": months,
+        "ytd": round(sum(slot["months"]), 2),
+        "win_days_pct": _win_pct(day_values),
+        "win_months_pct": _win_pct(month_values),
+        "closed_days": len(day_values),
+        "active_months": len(slot["seen"]),
+    }
 
 
 def summarize(name: str, starting_equity: float, trades: list[dict[str, Any]]) -> dict[str, Any]:
@@ -126,7 +209,8 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
     <div>
       <h1>Performance</h1>
       <p class="subtitle"><a href="/">Back to the dashboard</a> · closed paper trades only</p>
-      <p class="subtitle">Risk mode: Conservative</p>
+      <p class="subtitle">Risk mode: Moderate</p>
+      <p class="subtitle">Meme sniper is not leveraged.</p>
       <p class="subtitle">Paper forward test - did not pass all backtest criteria yet</p>
       <p class="subtitle">Swing: Paper forward test – did not pass all backtest criteria</p>
     </div>
@@ -228,6 +312,61 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
       </article>`;
     }
 
+    function leverageBlock(data) {
+      const pack = data.leverage_comparison || {};
+      const rows = pack.table || [];
+      if (!rows.length) {
+        return '<article class="card"><p class="hint">No leverage comparison saved.</p></article>';
+      }
+      const body = rows.map(row => `<tr>
+        <td>${row.name || ''}</td>
+        <td>${row.window || ''}</td>
+        <td>${row.total_return_pct == null ? '—' : row.total_return_pct + '%'}</td>
+        <td>${row.cagr_pct == null ? '—' : row.cagr_pct + '%'}</td>
+        <td>${row.sharpe == null ? '—' : row.sharpe}</td>
+        <td>${row.profit_factor == null ? '—' : row.profit_factor}</td>
+        <td>${row.max_drawdown_pct == null ? '—' : row.max_drawdown_pct + '%'}</td>
+        <td>${row.worst_month_pct == null ? '—' : row.worst_month_pct + '%'}</td>
+        <td>${row.trades == null ? '—' : row.trades}</td>
+        <td>${row.positive_month_pct == null ? '—' : row.positive_month_pct + '%'}</td>
+        <td>${row.longest_losing_months == null ? '—' : row.longest_losing_months}</td>
+        <td>${row.double_cost_return_pct == null ? '—' : row.double_cost_return_pct + '%'}</td>
+      </tr>`).join('');
+      return `<article class="card">
+        <p class="hint">${pack.note || ''}</p>
+        <table>
+          <thead><tr><th>Book</th><th>Window</th><th>Return</th><th>CAGR</th><th>Sharpe</th><th>Profit factor</th><th>Max drop</th><th>Worst month</th><th>Trades</th><th>Positive months</th><th>Longest losing months</th><th>Return if costs doubled</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </article>`;
+    }
+
+    function heat(value) {
+      if (value == null) return '<td style="color:var(--muted)">·</td>';
+      const bg = value > 0 ? 'rgba(34,197,94,0.38)' : value < 0 ? 'rgba(239,68,68,0.38)' : 'transparent';
+      return `<td style="background:${bg}">${signed(value)}</td>`;
+    }
+    function yearBlock(calendar) {
+      const pack = calendar || {};
+      const rows = pack.rows || [];
+      if (!rows.length) return '<article class="card"><p class="hint">No closed trades yet.</p></article>';
+      const head = (pack.months || []).map(name => `<th>${name}</th>`).join('');
+      const body = rows.map(row => `<tr>
+        <td>${row.name}</td>
+        ${(row.months || []).map(heat).join('')}
+        ${heat(row.ytd || 0)}
+        <td>${row.win_days_pct == null ? '—' : Number(row.win_days_pct).toFixed(1) + '%'}</td>
+        <td>${row.win_months_pct == null ? '—' : Number(row.win_months_pct).toFixed(1) + '%'}</td>
+      </tr>`).join('');
+      return `<article class="card">
+        <p class="hint">Year to date uses closed paper trades only. A blank month had no close. Winning days and winning months ignore empty days.</p>
+        <table>
+          <thead><tr><th>Bot</th>${head}<th>Year to date</th><th>Winning days</th><th>Winning months</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </article>`;
+    }
+
     function render(data) {
       const alloc = data.allocation || [];
       const pills = alloc.map(a => `<span class="pill"><strong>${a.name}</strong> ${Number(a.pct).toFixed(1)}% · ${money(a.usd)}</span>`).join('');
@@ -236,10 +375,14 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
           <h2>How the money is split</h2>
           <p class="hint">${data.note || ''}</p>
           <div class="split">${pills}</div>
-          <p class="hint" style="margin-top:12px">To change the meme sniper's share, edit <code>portfolio_share</code> in <code>config/global.yaml</code>. Use 0.10 to 0.30 (10% to 30%). It is 0.10 right now. Of what is left, the swing bot gets one third and the ensemble trend bot gets two thirds. On a $10,000 account that is $3,000 and $6,000. Then restart the app.</p>
+          <p class="hint" style="margin-top:12px">To change the meme sniper's share, edit <code>portfolio_share</code> in <code>config/global.yaml</code>. Use 0.10 to 0.30 (10% to 30%). It is 0.10 right now. The trend bot gets $8,000 and the swing bot gets $1,000 on a $10,000 account. Then restart the app.</p>
         </section>
         <h2 class="section-title">Backtest results</h2>
         ${backtestBlock(data)}
+        <h2 class="section-title">Leverage comparison</h2>
+        ${leverageBlock(data)}
+        <h2 class="section-title">Closed P&amp;L in ${data.calendar ? data.calendar.year : ''}</h2>
+        ${yearBlock(data.calendar)}
         <h2 class="section-title">Whole portfolio</h2>
         ${block(data.portfolio)}
         <h2 class="section-title">Each bot</h2>

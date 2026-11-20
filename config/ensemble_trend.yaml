@@ -12,16 +12,19 @@ symbols:
 timeframe: 1d
 
 parameters:
-  # Conservative forward test. The published research test used 25%.
-  target_vol: 0.15
+  # Moderate paper book. Chosen for the highest 2020-2025 annual return
+  # whose max drop stayed at or under 30%. Shorts were tested and left off.
+  target_vol: 0.25
   vol_lookback: 90
   rebalance_band: 0.20
   fee_rate: 0.001
   slippage_rate: 0.001
-  per_coin_cap: 0.25
-  gross_cap: 0.60
-  # On for this paper test. The long window passed; the holdout year did not.
+  per_coin_cap: 0.35
+  gross_cap: 1.50
+  max_model_weight: 1.50
+  # Longs only while Bitcoin is above its 200-day average.
   regime_filter: true
+  shorts: false
   funding_filter: false
 
 risk:

@@ -47,14 +47,14 @@ def test_caps_keep_one_coin_at_40_percent_and_gross_at_100():
 def test_guard_halves_then_goes_to_cash_and_pauses_a_bot():
     guard = PortfolioGuard()
     guard.update_portfolio(100)
-    guard.update_portfolio(93)
+    guard.update_portfolio(90)
     assert guard.state == "halved"
     assert guard.exposure_scale() == 0.5
-    guard.update_portfolio(88)
+    guard.update_portfolio(82)
     assert guard.state == "cash"
     assert guard.exposure_scale() == 0.0
     guard.update_bot("ensemble_trend", 100)
-    guard.update_bot("ensemble_trend", 90)
+    guard.update_bot("ensemble_trend", 85)
     assert "ensemble_trend" in guard.paused_bots
     assert guard.exposure_scale("ensemble_trend") == 0.0
 
