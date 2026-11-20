@@ -87,7 +87,11 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     .btn-stop { background: var(--red); color: #fff; }
     .btn-all { background: var(--accent); color: #fff; margin-right: 8px; }
     .controls { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
-    .positions table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    #year-pnl table, .positions table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    #year-pnl th, #year-pnl td {
+      text-align: right; padding: 6px 5px; border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    #year-pnl th:first-child, #year-pnl td:first-child { text-align: left; }
     .positions th, .positions td {
       text-align: left; padding: 8px 4px; border-bottom: 1px solid var(--border);
     }
@@ -106,7 +110,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <div>
       <h1>Multi-Bot Trading System</h1>
       <p class="subtitle">Live monitoring & controls · <a class="metrics-link" href="/performance">Performance</a> · <a class="metrics-link" href="/metrics" target="_blank">Prometheus metrics</a></p>
-      <p class="subtitle">Risk mode: Conservative</p>
+      <p class="subtitle">Risk mode: Moderate</p>
+      <p class="subtitle">Meme sniper is not leveraged.</p>
       <p class="subtitle">Paper forward test - did not pass all backtest criteria yet</p>
       <p class="subtitle">Swing: Paper forward test – did not pass all backtest criteria</p>
       <p class="subtitle" id="sniper-line"></p>
@@ -115,13 +120,19 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div>
 
   <div class="card" id="risk-guard" style="margin-bottom: 16px;">
-    <h2>Risk mode: Conservative</h2>
+    <h2>Risk mode: Moderate</h2>
     <div id="risk-guard-body" style="color:var(--muted)">Loading…</div>
   </div>
 
   <div class="card" id="sniper-rejects" style="margin-bottom: 16px;">
     <h2>Meme sniper skipped trades</h2>
     <div id="sniper-reject-body" style="color:var(--muted)">No skipped tokens yet.</div>
+  </div>
+
+  <div class="card" id="year-pnl" style="margin-bottom: 20px; overflow-x: auto;">
+    <h2 id="year-pnl-title">This year's closed P&amp;L</h2>
+    <div id="year-pnl-body" style="color:var(--muted)">Loading…</div>
+    <p class="refresh">Green is a winning month, red is a losing month. A blank month had no closed trade. Win rates use only days and months that closed a trade.</p>
   </div>
 
   <div class="card" style="margin-bottom: 20px;">
@@ -192,6 +203,29 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       }
     }
 
+    function heatCell(value) {
+      if (value == null) return '<td style="color:var(--muted)">·</td>';
+      const bg = value > 0 ? 'rgba(34,197,94,0.38)' : value < 0 ? 'rgba(239,68,68,0.38)' : 'transparent';
+      const text = (value > 0 ? '+' : '') + fmt(value);
+      return `<td style="background:${bg};text-align:right">${text}</td>`;
+    }
+    function rate(value) {
+      return value == null ? '—' : Number(value).toFixed(1) + '%';
+    }
+    function yearTable(calendar) {
+      const rows = calendar.rows || [];
+      if (!rows.length) return '<p>No closed trades yet.</p>';
+      const head = (calendar.months || []).map(name => `<th>${name}</th>`).join('');
+      const body = rows.map(row => `<tr>
+        <td>${row.name}</td>
+        ${(row.months || []).map(heatCell).join('')}
+        ${heatCell(row.ytd || 0)}
+        <td>${rate(row.win_days_pct)}</td>
+        <td>${rate(row.win_months_pct)}</td>
+      </tr>`).join('');
+      return `<table><thead><tr><th>Bot</th>${head}<th>Year to date</th><th>Winning days</th><th>Winning months</th></tr></thead><tbody>${body}</tbody></table>`;
+    }
+
     function render(data) {
       document.getElementById('mode').textContent = (data.mode || '—').toUpperCase();
       const sniperLine = document.getElementById('sniper-line');
@@ -237,6 +271,14 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         guardEl.textContent = (guard.label || 'Normal. Full paper size.')
           + (guard.drawdown_pct == null ? '' : ' Drawdown ' + Number(guard.drawdown_pct).toFixed(1) + '%.')
           + (paused ? ' Paused: ' + paused + '.' : '');
+      }
+
+      const yearEl = document.getElementById('year-pnl-body');
+      const yearTitle = document.getElementById('year-pnl-title');
+      if (yearEl) {
+        const calendar = data.calendar || {};
+        if (yearTitle) yearTitle.textContent = 'Closed P&L in ' + (calendar.year || '');
+        yearEl.innerHTML = yearTable(calendar);
       }
 
       const allocEl = document.getElementById('allocation-list');

@@ -6,10 +6,17 @@ import asyncio
 import logging
 
 from backtest.data import ensure_cache, frame_from_rows
-from backtest.ensemble import EnsembleParams, simulate_portfolio
+from backtest.ensemble import MAX_GROSS_LEVERAGE, EnsembleParams, simulate_portfolio
 from core.portfolio_guard import PortfolioGuard
 
 logger = logging.getLogger(__name__)
+
+
+def _btc_below_average(frame: dict, window: int = 200) -> dict[str, bool]:
+    """True only after 200 closes exist and Bitcoin is under that average."""
+    above = _btc_above_average(frame, window)
+    dates = frame.get("date") or []
+    return {date: index >= window and not above.get(date, False) for index, date in enumerate(dates)}
 
 
 def _btc_above_average(frame: dict, window: int = 200) -> dict[str, bool]:
@@ -88,9 +95,19 @@ class EnsembleTrendBot:
             return []
         params = self._params()
         regime = None
-        if self.config.parameters.get("regime_filter") and "BTCUSDT" in coins:
+        short_regime = None
+        if "BTCUSDT" in coins and self.config.parameters.get("regime_filter", True):
             regime = _btc_above_average(coins["BTCUSDT"])
-        result = simulate_portfolio(coins, params, initial_equity=max(self.equity, 1.0), regime=regime)
+            if self.config.parameters.get("shorts"):
+                short_regime = _btc_below_average(coins["BTCUSDT"])
+        result = simulate_portfolio(
+            coins,
+            params,
+            initial_equity=max(self.equity, 1.0),
+            regime=regime,
+            short_regime=short_regime,
+            funding_apr=0.10,
+        )
         scale = self.guard.exposure_scale(self.name) if self.guard else 1.0
         targets = {symbol: weight * scale for symbol, weight in result.ending_weights.items()}
         orders = []
@@ -155,12 +172,15 @@ class EnsembleTrendBot:
 
     def _params(self) -> EnsembleParams:
         raw = self.config.parameters
+        gross = min(float(raw.get("gross_cap", 1.0)), MAX_GROSS_LEVERAGE)
+        per_coin = min(float(raw.get("per_coin_cap", 0.35)), MAX_GROSS_LEVERAGE)
         return EnsembleParams(
             target_vol=float(raw.get("target_vol", 0.25)),
             vol_lookback=int(raw.get("vol_lookback", 90)),
             rebalance_band=float(raw.get("rebalance_band", 0.20)),
             fee=float(raw.get("fee_rate", 0.001)),
             slippage=float(raw.get("slippage_rate", 0.001)),
-            per_coin_cap=float(raw.get("per_coin_cap", 0.40)),
-            gross_cap=float(raw.get("gross_cap", 1.0)),
+            per_coin_cap=per_coin,
+            gross_cap=gross,
+            max_model_weight=min(float(raw.get("max_model_weight", gross)), MAX_GROSS_LEVERAGE),
         )

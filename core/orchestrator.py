@@ -20,7 +20,7 @@ from bots.breakout_bot import BreakoutBot
 from bots.ensemble_trend_bot import EnsembleTrendBot
 from bots.swing_bot import SwingBot
 from core.allocation import portfolio_allocations, scale_sniper_config
-from core.performance import summarize
+from core.performance import calendar_pnl, summarize
 from core.portfolio_guard import PortfolioGuard
 
 logger = structlog.get_logger(__name__)
@@ -286,6 +286,7 @@ class Orchestrator:
             "sniper": self._sniper_status(),
             "allocation": self._allocation_for_status(),
             "risk_guard": self.guard.status(),
+            "calendar": self._calendar(),
         }
 
     def _sniper_settings(self) -> tuple[bool, float]:
@@ -386,8 +387,39 @@ class Orchestrator:
             ),
             "backtests": backtests.get("strategies", []),
             "backtest_note": backtests.get("method", ""),
+            "leverage_comparison": backtests.get("leverage_comparison"),
+            "calendar": calendar_pnl(combined, bots=[(row["key"], row["name"]) for row in rows]),
             "risk_guard": self.guard.status(),
         }
+
+    def _calendar(self) -> dict:
+        trades = []
+        if self.risk:
+            for trade in self.risk.closed_trades:
+                closed = trade.closed_at
+                trades.append(
+                    {
+                        "bot": trade.bot_name,
+                        "pnl": trade.pnl,
+                        "closed_at": closed.isoformat() if hasattr(closed, "isoformat") else closed,
+                    }
+                )
+        service = getattr(self, "meme_sniper", None)
+        if service is not None:
+            try:
+                for trade in service.sniper.risk.closed_trades:
+                    closed = trade.closed_at
+                    trades.append(
+                        {
+                            "bot": "meme_sniper",
+                            "pnl": trade.pnl,
+                            "closed_at": closed.isoformat() if hasattr(closed, "isoformat") else closed,
+                        }
+                    )
+            except Exception as exc:
+                logger.warning("meme_sniper_calendar_failed", error=str(exc))
+        bots = [(row["key"], row["name"]) for row in self.allocation_rows()]
+        return calendar_pnl(trades, bots=bots)
 
     def _sniper_status(self) -> dict[str, Any]:
         summary: dict[str, Any] = {

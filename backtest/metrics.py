@@ -37,6 +37,61 @@ def profit_factor(daily_returns: list[float]) -> float | None:
     return gains / losses
 
 
+def cagr_pct(equity: list[float], initial: float, days: int) -> float | None:
+    if not equity or initial <= 0 or days <= 0:
+        return None
+    growth = equity[-1] / initial
+    if growth <= 0:
+        return None
+    return (growth ** (365.0 / days) - 1.0) * 100.0
+
+
+def month_returns(dates: list[str], daily_returns: list[float]) -> list[float]:
+    """Compounded return for each calendar month, in date order."""
+    buckets: dict[str, list[float]] = {}
+    order: list[str] = []
+    for date, ret in zip(dates, daily_returns):
+        key = str(date)[:7]
+        if key not in buckets:
+            order.append(key)
+            buckets[key] = []
+        buckets[key].append(ret)
+    compounded = []
+    for key in order:
+        value = 1.0
+        for ret in buckets[key]:
+            value *= 1.0 + ret
+        compounded.append(value - 1.0)
+    return compounded
+
+
+def worst_month_pct(dates: list[str], daily_returns: list[float]) -> float | None:
+    months = month_returns(dates, daily_returns)
+    if not months:
+        return None
+    return min(0.0, min(months)) * 100.0
+
+
+def positive_month_pct(dates: list[str], daily_returns: list[float]) -> float | None:
+    months = month_returns(dates, daily_returns)
+    if not months:
+        return None
+    return round(sum(1 for month in months if month > 0) / len(months) * 100.0, 1)
+
+
+def longest_losing_months(dates: list[str], daily_returns: list[float]) -> int:
+    """Longest run of calendar months whose compounded return was negative."""
+    streak = 0
+    worst = 0
+    for month in month_returns(dates, daily_returns):
+        if month < 0:
+            streak += 1
+            worst = max(worst, streak)
+        else:
+            streak = 0
+    return worst
+
+
 def total_return_pct(equity: list[float], initial: float) -> float | None:
     if not equity or initial == 0:
         return None
@@ -65,6 +120,7 @@ def evaluate(name: str, daily_returns: list[float], equity: list[float], trades:
     factor = profit_factor(daily_returns)
     drawdown = max_drawdown_pct(equity)
     net = total_return_pct(equity, initial)
+    annual = cagr_pct(equity, initial, len(daily_returns))
     return {
         "name": name,
         "sharpe": None if sharpe is None else round(sharpe, 3),
@@ -72,6 +128,7 @@ def evaluate(name: str, daily_returns: list[float], equity: list[float], trades:
         "max_drawdown_pct": None if drawdown is None else round(drawdown, 2),
         "trades": int(trades),
         "total_return_pct": None if net is None else round(net, 2),
+        "cagr_pct": None if annual is None else round(annual, 2),
         "days": len(daily_returns),
     }
 

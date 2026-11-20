@@ -3,6 +3,7 @@
 # It does not use a private key and it cannot send a real transaction.
 
 mode: "paper"
+leverage: 1   # Memes are never leveraged. The program ignores any other value.
 
 # Optional Render environment variables (Dashboard → your service → Environment):
 #   HELIUS_API_KEY        Better wallet tracking. Leave unset to use the free public Solana RPC.

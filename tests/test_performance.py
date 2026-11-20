@@ -129,8 +129,8 @@ def test_dashboard_reads_real_allocation_and_closed_trades():
     by_name = {row["key"]: row for row in status["allocation"]}
     assert by_name["meme_sniper"]["pct"] == 10.0
     assert by_name["meme_sniper"]["usd"] == 1000
-    assert by_name["ensemble_trend"]["usd"] == 6000
-    assert by_name["swing"]["usd"] == 3000
+    assert by_name["ensemble_trend"]["usd"] == 8000
+    assert by_name["swing"]["usd"] == 1000
 
     orchestrator.risk.closed_trades.append(
         _trade("ensemble_trend", "BTC/USDT", 25)
@@ -143,13 +143,16 @@ def test_dashboard_reads_real_allocation_and_closed_trades():
     assert trend["win_rate_pct"] == 100.0
     assert page["risk_guard"]["state"] == "normal"
     assert "Performance" in DASHBOARD_HTML
-    assert "Risk mode: Conservative" in DASHBOARD_HTML
+    assert "Risk mode: Moderate" in DASHBOARD_HTML
+    assert "Meme sniper is not leveraged." in DASHBOARD_HTML
     assert "Paper forward test - did not pass all backtest criteria yet" in DASHBOARD_HTML
     assert "Swing: Paper forward test – did not pass all backtest criteria" in DASHBOARD_HTML
     assert "Meme sniper skipped trades" in DASHBOARD_HTML
+    assert 'id="year-pnl"' in DASHBOARD_HTML
     assert "/performance" in DASHBOARD_HTML
     assert "portfolio_share" in PERFORMANCE_HTML
-    assert "Risk mode: Conservative" in PERFORMANCE_HTML
+    assert "Risk mode: Moderate" in PERFORMANCE_HTML
+    assert "Meme sniper is not leveraged." in PERFORMANCE_HTML
     assert "Paper forward test - did not pass all backtest criteria yet" in PERFORMANCE_HTML
     assert "Swing: Paper forward test – did not pass all backtest criteria" in PERFORMANCE_HTML
     assert "Win rate" in PERFORMANCE_HTML
