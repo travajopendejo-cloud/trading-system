@@ -100,6 +100,7 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
     .card {
       background: rgba(18, 21, 30, 0.9); border: 1px solid var(--border);
       border-radius: 12px; padding: 18px; margin-bottom: 16px;
+      overflow-x: auto;
     }
     .stats { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
     .stat-label { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -125,6 +126,8 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
     <div>
       <h1>Performance</h1>
       <p class="subtitle"><a href="/">Back to the dashboard</a> · closed paper trades only</p>
+      <p class="subtitle">Risk mode: Conservative</p>
+      <p class="subtitle">Paper forward test - did not pass all backtest criteria yet</p>
     </div>
     <span class="badge">PAPER</span>
   </div>
@@ -196,6 +199,34 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
       </article>`;
     }
 
+    function backtestBlock(data) {
+      const rows = data.backtests || [];
+      if (!rows.length) {
+        return '<article class="card"><p class="hint">No saved backtest yet.</p></article>';
+      }
+      const body = rows.map(row => {
+        const mark = row.verdict === 'PASS' ? 'green' : 'red';
+        const why = (row.failed || []).join('; ') || 'Met every listed rule.';
+        return `<tr>
+          <td>${row.name || ''}</td>
+          <td>${row.sharpe == null ? '—' : row.sharpe}</td>
+          <td>${row.profit_factor == null ? '—' : row.profit_factor}</td>
+          <td>${row.max_drawdown_pct == null ? '—' : row.max_drawdown_pct + '%'}</td>
+          <td>${row.trades == null ? '—' : row.trades}</td>
+          <td>${row.total_return_pct == null ? '—' : row.total_return_pct + '%'}</td>
+          <td class="${mark}">${row.verdict || 'FAIL'}</td>
+          <td>${why}</td>
+        </tr>`;
+      }).join('');
+      return `<article class="card">
+        <p class="hint">${data.backtest_note || ''}</p>
+        <table>
+          <thead><tr><th>Test</th><th>Sharpe</th><th>Profit factor</th><th>Max drop</th><th>Trades</th><th>Return</th><th>Result</th><th>Why</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </article>`;
+    }
+
     function render(data) {
       const alloc = data.allocation || [];
       const pills = alloc.map(a => `<span class="pill"><strong>${a.name}</strong> ${Number(a.pct).toFixed(1)}% · ${money(a.usd)}</span>`).join('');
@@ -204,8 +235,10 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
           <h2>How the money is split</h2>
           <p class="hint">${data.note || ''}</p>
           <div class="split">${pills}</div>
-          <p class="hint" style="margin-top:12px">To change the meme sniper's share, edit <code>portfolio_share</code> in <code>config/global.yaml</code>. Use 0.10 to 0.30 (10% to 30%). The default is 0.20. The other bots split whatever is left. Then restart the app.</p>
+          <p class="hint" style="margin-top:12px">To change the meme sniper's share, edit <code>portfolio_share</code> in <code>config/global.yaml</code>. Use 0.10 to 0.30 (10% to 30%). It is 0.10 right now. The ensemble trend bot gets whatever is left. Then restart the app.</p>
         </section>
+        <h2 class="section-title">Backtest results</h2>
+        ${backtestBlock(data)}
         <h2 class="section-title">Whole portfolio</h2>
         ${block(data.portfolio)}
         <h2 class="section-title">Each bot</h2>

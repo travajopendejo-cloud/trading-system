@@ -55,6 +55,7 @@ class SafetyChecker:
 
         await self._fill_holders(token)
         await self._fill_sell_quote(token)
+        await self._fill_unique_buyers(token)
         token.safety_checked = True
         return token
 
@@ -151,6 +152,68 @@ class SafetyChecker:
             return
         token.sell_route_ok = True
         token.sell_price_impact_pct = normalize_price_impact_pct(data.get("priceImpactPct"))
+        quoted = data.get("swapUsdValue")
+        try:
+            got = float(quoted) if quoted is not None else None
+        except (TypeError, ValueError):
+            got = None
+        if got is not None and got >= 0:
+            token.sell_tax_pct = max(0.0, (5.0 - got) / 5.0 * 100.0)
+
+    async def _fill_unique_buyers(self, token: TokenInfo) -> None:
+        """Count distinct wallets that increased this coin on the pool. Missing data stays unknown."""
+        if not token.pair_address:
+            return
+        try:
+            result = await self._rpc("getSignaturesForAddress", [token.pair_address, {"limit": 12}])
+        except (TemporaryFetchError, PermanentFetchError):
+            return
+        if not isinstance(result, list):
+            return
+        buyers: set[str] = set()
+        checked = 0
+        for row in result:
+            if checked >= 6 or not isinstance(row, dict) or row.get("err"):
+                continue
+            signature = row.get("signature")
+            if not isinstance(signature, str):
+                continue
+            checked += 1
+            try:
+                tx = await self._rpc(
+                    "getTransaction",
+                    [signature, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 1}],
+                )
+            except (TemporaryFetchError, PermanentFetchError):
+                continue
+            if not isinstance(tx, dict):
+                continue
+            keys = ((tx.get("transaction") or {}).get("message") or {}).get("accountKeys") or []
+            signers = []
+            for key in keys:
+                if isinstance(key, dict) and key.get("signer") and isinstance(key.get("pubkey"), str):
+                    signers.append(key["pubkey"])
+            meta = tx.get("meta") or {}
+            gained = set()
+            before: dict[str, float] = {}
+            after: dict[str, float] = {}
+            for kind, target in (("preTokenBalances", before), ("postTokenBalances", after)):
+                for bal in meta.get(kind) or []:
+                    if not isinstance(bal, dict) or bal.get("mint") != token.address:
+                        continue
+                    owner = bal.get("owner")
+                    try:
+                        amount = float((bal.get("uiTokenAmount") or {}).get("uiAmount") or 0)
+                    except (TypeError, ValueError):
+                        amount = 0.0
+                    if isinstance(owner, str):
+                        target[owner] = amount
+            for owner, amount in after.items():
+                if amount > before.get(owner, 0.0) + 1:
+                    gained.add(owner)
+            buyers.update(signer for signer in signers if signer in gained)
+        if checked:
+            token.unique_buyers = len(buyers)
 
     async def _rpc(self, method: str, params: list[Any]) -> Any:
         data = await self.http.post_json(

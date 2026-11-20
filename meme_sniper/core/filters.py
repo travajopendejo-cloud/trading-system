@@ -20,6 +20,15 @@ class TokenInfo:
     age_seconds: float = 0.0
     name: str = ""
     source: str = ""
+    dex: str = ""
+    graduated: bool = False
+    pair_address: str = ""
+    buy_count: int = 0
+    sell_count: int = 0
+    unique_buyers: int | None = None
+    lp_secured: bool | None = None
+    dev_checked: bool = False
+    sell_tax_pct: float | None = None
     decimals: int = 6
     supply_ui: float = 0.0
     # None means "we could not check". False means the check failed.
@@ -46,6 +55,13 @@ class TokenFilter:
         self.require_safety_check = bool(filters.get("require_safety_check", True))
         self.require_sell_route = bool(filters.get("require_sell_route", True))
         self.require_holder_data = bool(filters.get("require_holder_data", False))
+        self.require_graduated = bool(filters.get("require_graduated", False))
+        self.min_graduated_age_seconds = float(filters.get("min_graduated_age_seconds", 0))
+        self.require_lp_lock = bool(filters.get("require_lp_lock", False))
+        self.require_dev_check = bool(filters.get("require_dev_check", False))
+        self.require_two_sided_volume = bool(filters.get("require_two_sided_volume", False))
+        self.min_unique_buyers = int(filters.get("min_unique_buyers", 0))
+        self.max_sell_tax_pct = float(filters.get("max_sell_tax_pct", 100))
 
     def is_valid(self, token: TokenInfo) -> tuple[bool, str]:
         """Return (allowed, reason). A buy is allowed only when the reason is a pass."""
@@ -62,11 +78,32 @@ class TokenFilter:
         if token.freeze_revoked is not True:
             return False, "Freeze authority is on, so sells can be frozen"
 
+        if self.require_graduated and not token.graduated:
+            return False, "Not a graduated pump.fun token"
+
+        if self.require_graduated and token.age_seconds < self.min_graduated_age_seconds:
+            return False, "Graduated less than 30 minutes ago"
+
+        if self.require_lp_lock and token.lp_secured is not True:
+            return False, "LP is not locked or burned" if token.lp_secured is False else "LP lock or burn could not be verified"
+
+        if self.require_dev_check and not token.dev_checked:
+            return False, "Dev wallet size was not checked"
+
+        if token.dev_checked and token.dev_buy_pct > self.max_dev_buy_pct:
+            return False, f"Dev wallet too large ({token.dev_buy_pct:.1f}%)"
+
+        if self.require_two_sided_volume and (token.buy_count < 1 or token.sell_count < 1):
+            return False, "Needs both buy and sell volume"
+
+        if self.min_unique_buyers and (token.unique_buyers is None or token.unique_buyers < self.min_unique_buyers):
+            return False, "Not enough distinct buyers"
+
+        if token.sell_tax_pct is not None and token.sell_tax_pct > self.max_sell_tax_pct:
+            return False, f"Sell tax or shortfall too high ({token.sell_tax_pct:.1f}%)"
+
         if token.liquidity_usd < self.min_liquidity_usd:
             return False, f"Liquidity too low (${token.liquidity_usd:.0f})"
-
-        if token.dev_buy_pct > self.max_dev_buy_pct:
-            return False, f"Dev buy too high ({token.dev_buy_pct:.1f}%)"
 
         if token.bundle_pct > self.max_bundle_pct:
             return False, f"Bundle concentration too high ({token.bundle_pct:.1f}%)"

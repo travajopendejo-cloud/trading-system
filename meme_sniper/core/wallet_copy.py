@@ -4,6 +4,15 @@ Addresses were checked on Solana mainnet on 2026-11-19 with the public RPC
 (account exists, SOL balance, token accounts) plus public tracker pages.
 Wallets that did not show real meme-coin trading were disabled.
 No replacement addresses were added.
+
+Kimchi (@kimchi1x) was reviewed in the strategy report and is not on this list.
+On the evening of Nov 19, 2026 the three active names were checked again on
+publicnode. None had a measured average hold over 30 minutes, so none are copied.
+Cented: 160 newest signatures, 1 successful read, 0 signer swaps.
+Decu: 160 newest signatures, 0 successful reads, 0 signer swaps.
+Hermes: 1 signer buy of mint Q8epAD6h at 22:54 UTC, and another owner reduced
+that same coin in that transaction. No completed buy-then-sell, so hold time
+could not be measured. Kimchi was not added.
 """
 
 from __future__ import annotations
@@ -24,6 +33,11 @@ class TrackedWallet:
     enabled: bool = True
     # True when the account exists and shows meme-coin trading activity.
     checks_out: bool = False
+    # None means we have not measured it. Copying requires more than 30 minutes.
+    avg_hold_minutes: float | None = None
+    needs_reverification: bool = False
+    # Set only after an on-chain hold-time check and a side-wallet check both pass.
+    copy_allowed: bool = False
 
 
 @dataclass
@@ -45,11 +59,14 @@ TRACKED_WALLETS: list[TrackedWallet] = [
         notes=(
             "Checked on Solana on Nov 19, 2026. The account exists, holds about 910 SOL, "
             "and holds dozens of real-size pump.fun tokens. Public pages (Defined.fi, Vybe, "
-            "KolQuest) label this address as Cented. Kept on."
+            "KolQuest) label this address as Cented. Evening recheck: no measurable hold "
+            "time, so this wallet is not copied."
         ),
+        copy_allowed=False,
         max_copy_usd=90.0,
         enabled=True,
         checks_out=True,
+        needs_reverification=True,
     ),
     TrackedWallet(
         address="4vw54BmAogeRV3vPKWyFet5yf8DTLcREzdSzx4rw9Ud9",
@@ -57,11 +74,13 @@ TRACKED_WALLETS: list[TrackedWallet] = [
         notes=(
             "Checked on Solana on Nov 19, 2026. The account exists, holds about 600 SOL, "
             "and holds nearly 200 real-size pump.fun tokens. Public pages label it as Decu "
-            "(@notdecu). Kept on."
+            "(@notdecu). Evening recheck: no measurable hold time, so this wallet is not copied."
         ),
+        copy_allowed=False,
         max_copy_usd=85.0,
         enabled=True,
         checks_out=True,
+        needs_reverification=True,
     ),
     TrackedWallet(
         address="5dzH7gh5FjtrxUwtfBufJyTBA4fyCUGheZsdYQsE9vag",
@@ -70,11 +89,14 @@ TRACKED_WALLETS: list[TrackedWallet] = [
             "Checked on Solana on Nov 19, 2026. The account exists, holds dozens of pump.fun "
             "tokens, and signed a buy that spent about $200 USDC on a pump.fun coin. pump.fun "
             "has a profile for this address. Kept on. That profile says not to copy him; this "
-            "bot only paper-trades and still runs the safety filters."
+            "bot only paper-trades. Evening recheck found one signer buy with another "
+            "wallet selling that coin in the same transaction, and no completed hold. Not copied."
         ),
+        copy_allowed=False,
         max_copy_usd=80.0,
         enabled=True,
         checks_out=True,
+        needs_reverification=True,
     ),
     TrackedWallet(
         address="93WbteZH6nrWeHd5JT6mJE5VHbWcCTDZzzqqnpZ98V9G",
@@ -137,6 +159,17 @@ class WalletCopyManager:
         if wallet is None:
             return None
         if entry_price <= 0 or size_usd < min_wallet_buy_usd:
+            return None
+        if not wallet.copy_allowed:
+            logger.info("Not copying %s. The latest on-chain check did not clear this wallet.", wallet.name)
+            return None
+        hold = wallet.avg_hold_minutes
+        if hold is None or hold <= 30:
+            logger.info(
+                "Not copying %s. Average hold is %s; need more than 30 minutes, and the wallet still needs a fresh check.",
+                wallet.name,
+                "unknown" if hold is None else f"{hold:.0f} minutes",
+            )
             return None
 
         copy_size = float(wallet.max_copy_usd)

@@ -43,8 +43,8 @@ def safe_token(**overrides) -> TokenInfo:
         symbol="TESTCOIN",
         address=MINT,
         price=1.0,
-        liquidity_usd=5000,
-        dev_buy_pct=4.0,
+        liquidity_usd=80_000,
+        graduated=True,
         bundle_pct=6.0,
         top10_holders_pct=30.0,
         top_holder_pct=10.0,
@@ -56,6 +56,14 @@ def safe_token(**overrides) -> TokenInfo:
         sell_route_ok=True,
         sell_price_impact_pct=1.0,
         source="dexscreener",
+        age_seconds=3600,
+        buy_count=8,
+        sell_count=6,
+        unique_buyers=4,
+        lp_secured=True,
+        dev_checked=True,
+        dev_buy_pct=1.0,
+        sell_tax_pct=0.0,
     )
     data.update(overrides)
     return TokenInfo(**data)
@@ -186,6 +194,7 @@ def test_tracked_wallets_match_on_chain_review():
         if not wallet.checks_out:
             assert wallet.enabled is False
     assert next(wallet for wallet in TRACKED_WALLETS if wallet.name == "Naseem").checks_out is False
+    assert all(wallet.copy_allowed is False for wallet in TRACKED_WALLETS)
     manager = WalletCopyManager()
     assert NASEEM not in manager.wallets
     assert HERMES in manager.wallets
@@ -209,9 +218,19 @@ def test_filters_block_unsafe_tokens_and_allow_checked_ones():
         safe_token(sell_price_impact_pct=40),
         safe_token(price=0),
         safe_token(dev_buy_pct=20),
+        safe_token(age_seconds=60),
+        safe_token(lp_secured=None),
+        safe_token(sell_count=0),
+        safe_token(unique_buyers=1),
+        safe_token(sell_tax_pct=20),
     ]
     for token in cases:
         assert checker.is_valid(token)[0] is False
+    assert "LP" in checker.is_valid(safe_token(lp_secured=None))[1]
+    assert "30 minutes" in checker.is_valid(safe_token(age_seconds=60))[1]
+    sniper = MemeSniper(load_sniper_config())
+    assert sniper.open_trade(safe_token(symbol="THIN", lp_secured=None)) is None
+    assert any("LP" in row["reason"] for row in sniper.rejections)
 
     loose = TokenFilter({"filters": {"require_holder_data": False, "require_sell_route": True}})
     missing_holders = safe_token(holder_checked=False, top_holder_pct=0, top10_holders_pct=0)
@@ -257,22 +276,24 @@ def test_take_profit_sells_half_once_then_closes():
         return original(symbol, amount, price)
 
     sniper.executor.sell = counting_sell
+    sniper.executor.cost_rate = 0
     pos = sniper.open_trade(safe_token())
     assert pos is not None
-    assert pos.amount == 10
-    sniper.check_position(pos.key, pos.take_profit_1)
+    assert abs(pos.amount - 2) < 1e-9
+    assert abs(pos.stop_loss - 0.8) < 1e-9
+    sniper.check_position(pos.key, 2.0)
     assert len(sells) == 1
-    assert abs(sells[0][1] - 5) < 1e-9
     still_open = sniper.risk.positions[pos.key]
     assert still_open.tp1_done is True
-    assert abs(still_open.amount - 5) < 1e-9
-    sniper.check_position(pos.key, pos.take_profit_1)
+    assert abs(still_open.stop_loss - still_open.entry_price) < 1e-9
+    sniper.check_position(pos.key, 2.0)
     assert len(sells) == 1
-    sniper.check_position(pos.key, pos.take_profit_2)
+    sniper.check_position(pos.key, 3.0)
+    assert len(sells) == 1
+    sniper.check_position(pos.key, 2.3)
     assert pos.key not in sniper.risk.positions
-    assert len(sniper.risk.closed_trades) == 2
-    assert abs(sum(trade.pnl for trade in sniper.risk.closed_trades) - 12) < 1e-6
-    assert abs(sniper.risk.capital - 112) < 1e-6
+    assert sniper.risk.closed_trades[-1].reason == "sl"
+    assert sum(trade.pnl for trade in sniper.risk.closed_trades) > 0
     history = sniper.dashboard_trades()
     assert history[0]["bot"] == "meme_sniper"
     assert history[0]["side"] == "long"
@@ -281,6 +302,8 @@ def test_take_profit_sells_half_once_then_closes():
 
 def test_time_stop_and_daily_loss_and_day_reset():
     sniper = MemeSniper(load_sniper_config())
+    sniper.time_stop_minutes = 12
+    sniper.executor.cost_rate = 0
     pos = sniper.open_trade(safe_token())
     pos.entry_time = datetime.now(timezone.utc) - timedelta(minutes=30)
     reason = sniper.check_position(pos.key, 1.1)
@@ -320,6 +343,9 @@ def test_copy_uses_filters_and_ignores_disabled_wallets():
     manager = sniper.wallet_copy
     assert manager.should_copy("not-a-wallet", MINT, "T", 1, 100) is None
     assert manager.should_copy(HERMES, MINT, "T", 1, 10) is None
+    assert manager.should_copy(HERMES, MINT, "T", 1, 80) is None
+    manager.wallets[HERMES].copy_allowed = True
+    manager.wallets[HERMES].avg_hold_minutes = 45
     signal = manager.should_copy(HERMES, MINT, "T", 1, 80)
     assert signal is not None
     assert signal.amount_usd <= 10
@@ -539,7 +565,7 @@ def test_service_paper_trades_safe_tokens_and_ignores_network_loss():
     asyncio.run(rejected.cycle())
     assert rejected.sniper.risk.positions == {}
 
-    copy_token = safe_token(symbol="COPIED", price=0.0002, liquidity_usd=4000)
+    copy_token = safe_token(symbol="COPIED", price=0.0002, liquidity_usd=80_000)
     buy = ObservedBuy(
         wallet_address=HERMES,
         token_address=MINT,
@@ -549,6 +575,8 @@ def test_service_paper_trades_safe_tokens_and_ignores_network_loss():
         signature="copy-sig",
     )
     copier = make_service(buys=[buy], lookup=copy_token)
+    copier.sniper.wallet_copy.wallets[HERMES].copy_allowed = True
+    copier.sniper.wallet_copy.wallets[HERMES].avg_hold_minutes = 45
     asyncio.run(copier.cycle())
     copied = copier.sniper.risk.positions[MINT]
     assert copied.source == "copy:Hermes"
@@ -595,7 +623,7 @@ def test_dashboard_status_includes_sniper_history_and_stays_importable():
     service = make_service(tokens=[token])
     asyncio.run(service.cycle())
     position = next(iter(service.sniper.risk.positions.values()))
-    service.sniper.check_position(position.key, position.take_profit_2)
+    service.sniper.check_position(position.key, position.take_profit_1)
 
     orchestrator = Orchestrator(config)
     status = orchestrator.get_status()
@@ -608,8 +636,8 @@ def test_dashboard_status_includes_sniper_history_and_stays_importable():
     orchestrator.meme_sniper = service
     status = orchestrator.get_status()
     trades = [row for row in status["closed_trades"] if row["bot"] == "meme_sniper"]
-    assert len(trades) == 1
+    assert trades
     assert trades[0]["symbol"] == "TESTCOIN"
-    assert trades[0]["pnl"] > 0
+    assert any(row["pnl"] > 0 for row in trades)
     assert "id=\"sniper-line\"" in DASHBOARD_HTML
     assert "function fmtPx" in DASHBOARD_HTML

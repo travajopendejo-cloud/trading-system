@@ -214,4 +214,10 @@ class MemeSniperService:
             "last_error": self.last_error,
             "rpc": self.rpc_description,
             "helius": bool(self.wallets.helius_api_key),
+            "rejections": list(self.sniper.rejections),
+            "copying": [
+                wallet.name
+                for wallet in TRACKED_WALLETS
+                if wallet.enabled and wallet.copy_allowed
+            ],
         }

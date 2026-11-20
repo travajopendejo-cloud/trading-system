@@ -17,8 +17,10 @@ from core.dashboard import DashboardServer
 from bots.trend_bot import TrendBot
 from bots.mean_reversion_bot import MeanReversionBot
 from bots.breakout_bot import BreakoutBot
+from bots.ensemble_trend_bot import EnsembleTrendBot
 from core.allocation import portfolio_allocations, scale_sniper_config
 from core.performance import summarize
+from core.portfolio_guard import PortfolioGuard
 
 logger = structlog.get_logger(__name__)
 
@@ -58,6 +60,7 @@ BOT_REGISTRY = {
     "trend_bot": TrendBot,
     "mean_reversion_bot": MeanReversionBot,
     "breakout_bot": BreakoutBot,
+    "ensemble_trend": EnsembleTrendBot,
 }
 
 
@@ -75,6 +78,7 @@ class Orchestrator:
         self._loop: asyncio.AbstractEventLoop | None = None
         self.initial_equity = float(global_cfg.trading.get("initial_equity", 10_000))
         self.meme_sniper = None
+        self.guard = PortfolioGuard()
 
     async def start(self) -> None:
         logger.info("orchestrator_starting")
@@ -154,6 +158,8 @@ class Orchestrator:
                 trading_mode=mode,
             )
             self.bots[name] = bot
+            if hasattr(bot, "attach_guard"):
+                bot.attach_guard(self.guard)
             await bot.start()
             logger.info("bot_launched", name=name, allocation=allocated)
 
@@ -209,6 +215,7 @@ class Orchestrator:
                 "name": name,
                 "status": status,
                 "symbols": symbols,
+                "note": getattr(bot, "status_note", "") or "",
             })
 
         positions = []
@@ -220,6 +227,17 @@ class Orchestrator:
                     "side": pos.side,
                     "amount": pos.amount,
                     "entry_price": pos.entry_price,
+                })
+        for name, bot in self.bots.items():
+            for symbol, weight in (getattr(bot, "weights", {}) or {}).items():
+                if weight <= 0:
+                    continue
+                positions.append({
+                    "bot": name,
+                    "symbol": symbol,
+                    "side": "long",
+                    "amount": round(weight, 4),
+                    "entry_price": (getattr(bot, "last_prices", {}) or {}).get(symbol),
                 })
 
         # Closed trades history
@@ -265,6 +283,7 @@ class Orchestrator:
             "halted": self.risk.halted if self.risk else False,
             "sniper": self._sniper_status(),
             "allocation": self._allocation_for_status(),
+            "risk_guard": self.guard.status(),
         }
 
     def _sniper_settings(self) -> tuple[bool, float]:
@@ -349,6 +368,9 @@ class Orchestrator:
             bots.append(report)
         portfolio = summarize("Whole portfolio", self.initial_equity, combined)
         sniper_pct = next((row["pct"] for row in rows if row["key"] == "meme_sniper"), 0.0)
+        from backtest.harness import load_report
+
+        backtests = load_report() or {}
         return {
             "mode": "paper",
             "portfolio": portfolio,
@@ -360,6 +382,9 @@ class Orchestrator:
                 "A trade that is still open is not a win or a loss yet. "
                 f"The meme sniper is set to {float(sniper_pct):.1f}% of the account."
             ),
+            "backtests": backtests.get("strategies", []),
+            "backtest_note": backtests.get("method", ""),
+            "risk_guard": self.guard.status(),
         }
 
     def _sniper_status(self) -> dict[str, Any]:
@@ -373,6 +398,8 @@ class Orchestrator:
             "last_error": None,
             "rpc": None,
             "helius": False,
+            "rejections": [],
+            "copying": [],
         }
         try:
             from meme_sniper.core.wallet_copy import TRACKED_WALLETS
