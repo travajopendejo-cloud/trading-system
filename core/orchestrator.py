@@ -388,6 +388,7 @@ class Orchestrator:
             "backtests": backtests.get("strategies", []),
             "backtest_note": backtests.get("method", ""),
             "leverage_comparison": backtests.get("leverage_comparison"),
+            "shorts_comparison": backtests.get("shorts_comparison"),
             "calendar": calendar_pnl(combined, bots=[(row["key"], row["name"]) for row in rows]),
             "risk_guard": self.guard.status(),
         }

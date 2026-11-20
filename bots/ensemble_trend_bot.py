@@ -11,6 +11,19 @@ from core.portfolio_guard import PortfolioGuard
 
 logger = logging.getLogger(__name__)
 
+FORWARD_TEST = "Paper forward test - did not pass all backtest criteria yet."
+
+
+def short_label(scale: float) -> str:
+    """One sentence for the dashboard. Half size is the book that fit under a 30% drop."""
+    if abs(scale - 0.5) < 0.02:
+        size = "half size"
+    elif abs(scale - 0.33) < 0.02:
+        size = "one third size"
+    else:
+        size = f"{scale:.2f}x long size"
+    return f"Shorts: on at {size}, only when Bitcoin is under its 200-day average."
+
 
 def _btc_below_average(frame: dict, window: int = 200) -> dict[str, bool]:
     """True only after 200 closes exist and Bitcoin is under that average."""
@@ -47,7 +60,9 @@ class EnsembleTrendBot:
         self.last_prices: dict[str, float] = {}
         self.paper_orders: list[dict] = []
         self.last_decision_date: str | None = None
-        self.status_note = "Paper forward test - did not pass all backtest criteria yet"
+        self.status_note = FORWARD_TEST
+        if config.parameters.get("shorts"):
+            self.status_note = FORWARD_TEST + " " + short_label(float(config.parameters.get("short_scale", 0.5)))
         self._task: asyncio.Task | None = None
 
     @classmethod
@@ -143,18 +158,20 @@ class EnsembleTrendBot:
             self.guard.update_bot(self.name, self.equity)
             self.guard.update_portfolio(self.equity)
         blocked = regime is not None and not regime.get(decision_date, False)
-        if blocked and not any(weight > 0 for weight in targets.values()):
-            self.status_note = (
-                "Paper forward test - did not pass all backtest criteria yet. "
-                "Bitcoin is under its 200-day average, so this bot stays in cash."
-            )
+        short_today = short_regime is not None and short_regime.get(decision_date, False)
+        has_short = any(weight < 0 for weight in targets.values())
+        has_long = any(weight > 0 for weight in targets.values())
+        phrase = short_label(params.short_scale) if self.config.parameters.get("shorts") else ""
+        if short_today and has_short:
+            self.status_note = f"{FORWARD_TEST} {phrase}"
+        elif short_today and not has_long:
+            self.status_note = f"{FORWARD_TEST} {phrase} No short signal today."
+        elif blocked and not has_long:
+            self.status_note = FORWARD_TEST + " Bitcoin is under its 200-day average, so this bot stays in cash."
         elif orders:
-            self.status_note = (
-                "Paper forward test - did not pass all backtest criteria yet. "
-                f"Last daily paper fills: {len(orders)}."
-            )
+            self.status_note = f"{FORWARD_TEST} {phrase} Last daily paper fills: {len(orders)}.".strip()
         else:
-            self.status_note = "Paper forward test - did not pass all backtest criteria yet. No weight change today."
+            self.status_note = f"{FORWARD_TEST} {phrase} No weight change today.".strip()
         logger.info("ensemble_paper_orders %s", orders)
         return orders
 
@@ -183,4 +200,5 @@ class EnsembleTrendBot:
             per_coin_cap=per_coin,
             gross_cap=gross,
             max_model_weight=min(float(raw.get("max_model_weight", gross)), MAX_GROSS_LEVERAGE),
+            short_scale=min(1.0, max(0.0, float(raw.get("short_scale", 1.0)))),
         )

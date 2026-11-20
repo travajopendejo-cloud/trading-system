@@ -30,6 +30,8 @@ class EnsembleParams:
     per_coin_cap: float = 0.40
     gross_cap: float = 1.0
     bars_per_year: int = 365
+    # 1.0 means a short is the same size as a long. 0.5 means half.
+    short_scale: float = 1.0
 
     @property
     def cost(self) -> float:
@@ -158,7 +160,10 @@ def simulate_coin(
                 continue
             vol_start = max(1, i - params.vol_lookback)
             ann_vol = _std(returns[vol_start : i + 1]) * math.sqrt(params.bars_per_year)
-            model_weights.append(model_size(ann_vol, params) * model["side"])
+            size = model_size(ann_vol, params)
+            if model["side"] < 0:
+                size *= min(1.0, max(0.0, params.short_scale))
+            model_weights.append(size * model["side"])
         target = sum(model_weights) / len(params.lookbacks) if params.lookbacks else 0.0
         same_way = held * target > 0
         if same_way and abs(target - held) < params.rebalance_band * abs(held):
@@ -190,11 +195,21 @@ def _record_exit(trades: list[ModelTrade], symbol: str, model: dict, price: floa
     )
 
 
-def cap_weights(weights: dict[str, float], per_coin: float, gross: float) -> dict[str, float]:
-    """Clip each coin, then scale the gross book. Gross leverage cannot exceed 1.5x."""
+def cap_weights(weights: dict[str, float], per_coin: float, gross: float, short_scale: float = 1.0) -> dict[str, float]:
+    """Clip each coin, then scale the gross book. Gross leverage cannot exceed 1.5x.
+
+    A short uses short_scale times the long coin cap. The gross cap still covers longs and shorts together.
+    """
     gross = min(float(gross), MAX_GROSS_LEVERAGE)
     per_coin = min(abs(float(per_coin)), MAX_GROSS_LEVERAGE)
-    capped = {name: min(max(float(value), -per_coin), per_coin) for name, value in weights.items()}
+    short_cap = per_coin * min(1.0, max(0.0, float(short_scale)))
+    capped = {}
+    for name, value in weights.items():
+        value = float(value)
+        if value < 0:
+            capped[name] = max(value, -short_cap)
+        else:
+            capped[name] = min(value, per_coin)
     total = sum(abs(value) for value in capped.values())
     if total > gross > 0:
         scale = gross / total
@@ -274,7 +289,7 @@ def simulate_portfolio(
             closes[symbol] = result.close[pos]
             highs[symbol] = result.high[pos]
             lows[symbol] = result.low[pos]
-        target = cap_weights(raw, params.per_coin_cap, params.gross_cap)
+        target = cap_weights(raw, params.per_coin_cap, params.gross_cap, params.short_scale)
         if risk_overlay and peak > 0:
             drop = (peak - equity) / peak
             if drop >= 0.20:

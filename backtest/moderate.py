@@ -41,7 +41,16 @@ def _params(target_vol: float, per_coin: float, gross: float) -> EnsembleParams:
     )
 
 
-def run_window(data: dict, params: EnsembleParams, start: str, end: str, name: str, shorts: bool) -> dict:
+def run_window(
+    data: dict,
+    params: EnsembleParams,
+    start: str,
+    end: str,
+    name: str,
+    shorts: bool,
+    short_scale: float = 1.0,
+) -> dict:
+    params = replace(params, short_scale=short_scale if shorts else 1.0)
     btc_rows = data["BTCUSDT"]
     long_map = _regime_map(btc_rows)
     short_map = _short_map(long_map, btc_rows) if shorts else None
@@ -65,6 +74,7 @@ def run_window(data: dict, params: EnsembleParams, start: str, end: str, name: s
     row["target_vol"] = params.target_vol
     row["per_coin_cap"] = params.per_coin_cap
     row["shorts"] = shorts
+    row["short_scale"] = params.short_scale if shorts else 0.0
     return row
 
 
@@ -149,3 +159,43 @@ def _pick_default(conservative: dict, moderate_long: dict, moderate_short: dict 
         return "conservative_long"
     eligible.sort(key=lambda item: item[1]["oos"]["cagr_pct"], reverse=True)
     return eligible[0][0]
+
+
+SHORT_SIZE_LADDER = (0.5, 0.33, 0.25)
+
+
+def _two_windows(data: dict, params: EnsembleParams, label: str, shorts: bool, short_scale: float, oos_start: str) -> dict[str, dict]:
+    windows = (("oos", oos_start, OOS_END), ("holdout", HOLDOUT_START, HOLDOUT_END))
+    out = {}
+    for key, start, end in windows:
+        out[key] = run_window(data, params, start, end, label, shorts, short_scale)
+        doubled = replace(params, fee=params.fee * 2, slippage=params.slippage * 2)
+        cost = run_window(data, doubled, start, end, label + " at double costs", shorts, short_scale)
+        out[key]["double_cost_return_pct"] = cost["total_return_pct"]
+    return out
+
+
+def compare_shorts(data: dict) -> dict:
+    """Long-only 1.5x against longs plus a smaller short book. Shorts shrink until the 2020-2025 drop is within 30%."""
+    oos_start = _shift_year(data["BTCUSDT"][0]["date"], 3)
+    moderate = _params(0.25, 0.35, 1.5)
+    long_only = _two_windows(data, moderate, "Moderate 1.5x long-only", False, 1.0, oos_start)
+    tried = []
+    chosen_scale = None
+    chosen = None
+    for scale in SHORT_SIZE_LADDER:
+        book = _two_windows(data, moderate, f"Long plus {scale:.2f}x shorts", True, scale, oos_start)
+        tried.append({"scale": scale, "oos_max_drawdown_pct": book["oos"]["max_drawdown_pct"]})
+        drop = book["oos"]["max_drawdown_pct"]
+        if drop is not None and drop <= 30 and chosen is None:
+            chosen_scale = scale
+            chosen = book
+            break
+    return {
+        "funding": "10% a year on the whole short, and on long exposure above 1x. Binance funding history returned HTTP 451 and 404.",
+        "long_only": long_only,
+        "chosen_scale": chosen_scale,
+        "chosen": chosen,
+        "tried": tried,
+        "fits": chosen_scale is not None,
+    }

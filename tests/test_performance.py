@@ -147,6 +147,7 @@ def test_dashboard_reads_real_allocation_and_closed_trades():
     assert "Meme sniper is not leveraged." in DASHBOARD_HTML
     assert "Paper forward test - did not pass all backtest criteria yet" in DASHBOARD_HTML
     assert "Swing: Paper forward test – did not pass all backtest criteria" in DASHBOARD_HTML
+    assert "Shorts: on at half size, only when Bitcoin is under its 200-day average." in DASHBOARD_HTML
     assert "Meme sniper skipped trades" in DASHBOARD_HTML
     assert 'id="year-pnl"' in DASHBOARD_HTML
     assert "/performance" in DASHBOARD_HTML
@@ -155,6 +156,7 @@ def test_dashboard_reads_real_allocation_and_closed_trades():
     assert "Meme sniper is not leveraged." in PERFORMANCE_HTML
     assert "Paper forward test - did not pass all backtest criteria yet" in PERFORMANCE_HTML
     assert "Swing: Paper forward test – did not pass all backtest criteria" in PERFORMANCE_HTML
+    assert "Shorts: on at half size, only when Bitcoin is under its 200-day average." in PERFORMANCE_HTML
     assert "Win rate" in PERFORMANCE_HTML
     assert "/static/dagobert-bg.webp" in DASHBOARD_HTML
     assert "background-size: cover" in DASHBOARD_HTML
