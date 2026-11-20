@@ -12,8 +12,7 @@ symbols:
 timeframe: 1d
 
 parameters:
-  # Moderate paper book. Chosen for the highest 2020-2025 annual return
-  # whose max drop stayed at or under 30%. Shorts were tested and left off.
+  # Moderate paper book. Shorts are half a long, which kept the 2020-2025 drop at 24.1%.
   target_vol: 0.25
   vol_lookback: 90
   rebalance_band: 0.20
@@ -22,9 +21,11 @@ parameters:
   per_coin_cap: 0.35
   gross_cap: 1.50
   max_model_weight: 1.50
-  # Longs only while Bitcoin is above its 200-day average.
+  # Longs while Bitcoin is above its 200-day average.
+  # Shorts while Bitcoin is below it, at half the long size.
   regime_filter: true
-  shorts: false
+  shorts: true
+  short_scale: 0.5
   funding_filter: false
 
 risk:

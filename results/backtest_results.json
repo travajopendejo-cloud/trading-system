@@ -628,5 +628,153 @@
         "liquidations": 0
       }
     ]
+  },
+  "shorts_comparison": {
+    "chosen_scale": 0.5,
+    "fits": true,
+    "tried": [
+      {
+        "scale": 0.5,
+        "oos_max_drawdown_pct": 24.1
+      }
+    ],
+    "funding": "10% a year on the whole short, and on long exposure above 1x. Binance funding history returned HTTP 451 and 404.",
+    "note": "Shorts are on at half the long size. On 2020-2025 that book dropped 24.1%, which is under 30%, so the size was not cut to one third. Long-only 1.5x dropped 20.93% and made 48.41% a year. Long plus half-size shorts made 46.06% a year, with a 24.1% drop, and the holdout year made 14.19% against 5.68% for long-only. Shorts are allowed only when Bitcoin is under its 200-day average. The whole short is charged 10% a year because Binance funding history was blocked. The gross cap stays 1.5x for longs and shorts together. No day hit the liquidation line.",
+    "table": [
+      {
+        "name": "Moderate 1.5x long-only",
+        "window": "2020-2025",
+        "total_return_pct": 698.65,
+        "cagr_pct": 48.41,
+        "sharpe": 1.497,
+        "profit_factor": 1.346,
+        "max_drawdown_pct": 20.93,
+        "worst_month_pct": -16.8,
+        "trades": 643,
+        "positive_month_pct": 42.2,
+        "longest_losing_months": 4,
+        "double_cost_return_pct": 637.92,
+        "liquidations": 0,
+        "short_scale": 0.0
+      },
+      {
+        "name": "Long plus half-size shorts",
+        "window": "2020-2025",
+        "total_return_pct": 634.38,
+        "cagr_pct": 46.06,
+        "sharpe": 1.365,
+        "profit_factor": 1.264,
+        "max_drawdown_pct": 24.1,
+        "worst_month_pct": -16.8,
+        "trades": 995,
+        "positive_month_pct": 53.1,
+        "longest_losing_months": 4,
+        "double_cost_return_pct": 561.22,
+        "liquidations": 0,
+        "short_scale": 0.5
+      },
+      {
+        "name": "Moderate 1.5x long-only",
+        "window": "Holdout year",
+        "total_return_pct": 5.68,
+        "cagr_pct": 5.68,
+        "sharpe": 0.428,
+        "profit_factor": 1.149,
+        "max_drawdown_pct": 12.4,
+        "worst_month_pct": -7.82,
+        "trades": 36,
+        "positive_month_pct": 15.4,
+        "longest_losing_months": 2,
+        "double_cost_return_pct": 4.95,
+        "liquidations": 0,
+        "short_scale": 0.0
+      },
+      {
+        "name": "Long plus half-size shorts",
+        "window": "Holdout year",
+        "total_return_pct": 14.19,
+        "cagr_pct": 14.19,
+        "sharpe": 0.661,
+        "profit_factor": 1.115,
+        "max_drawdown_pct": 13.62,
+        "worst_month_pct": -7.82,
+        "trades": 150,
+        "positive_month_pct": 53.8,
+        "longest_losing_months": 2,
+        "double_cost_return_pct": 12.55,
+        "liquidations": 0,
+        "short_scale": 0.5
+      }
+    ],
+    "table_rows": {
+      "oos": {
+        "long": {
+          "name": "Moderate 1.5x long-only",
+          "window": "2020-2025",
+          "total_return_pct": 698.65,
+          "cagr_pct": 48.41,
+          "sharpe": 1.497,
+          "profit_factor": 1.346,
+          "max_drawdown_pct": 20.93,
+          "worst_month_pct": -16.8,
+          "trades": 643,
+          "positive_month_pct": 42.2,
+          "longest_losing_months": 4,
+          "double_cost_return_pct": 637.92,
+          "liquidations": 0,
+          "short_scale": 0.0
+        },
+        "half": {
+          "name": "Long plus half-size shorts",
+          "window": "2020-2025",
+          "total_return_pct": 634.38,
+          "cagr_pct": 46.06,
+          "sharpe": 1.365,
+          "profit_factor": 1.264,
+          "max_drawdown_pct": 24.1,
+          "worst_month_pct": -16.8,
+          "trades": 995,
+          "positive_month_pct": 53.1,
+          "longest_losing_months": 4,
+          "double_cost_return_pct": 561.22,
+          "liquidations": 0,
+          "short_scale": 0.5
+        }
+      },
+      "holdout": {
+        "long": {
+          "name": "Moderate 1.5x long-only",
+          "window": "Holdout year",
+          "total_return_pct": 5.68,
+          "cagr_pct": 5.68,
+          "sharpe": 0.428,
+          "profit_factor": 1.149,
+          "max_drawdown_pct": 12.4,
+          "worst_month_pct": -7.82,
+          "trades": 36,
+          "positive_month_pct": 15.4,
+          "longest_losing_months": 2,
+          "double_cost_return_pct": 4.95,
+          "liquidations": 0,
+          "short_scale": 0.0
+        },
+        "half": {
+          "name": "Long plus half-size shorts",
+          "window": "Holdout year",
+          "total_return_pct": 14.19,
+          "cagr_pct": 14.19,
+          "sharpe": 0.661,
+          "profit_factor": 1.115,
+          "max_drawdown_pct": 13.62,
+          "worst_month_pct": -7.82,
+          "trades": 150,
+          "positive_month_pct": 53.8,
+          "longest_losing_months": 2,
+          "double_cost_return_pct": 12.55,
+          "liquidations": 0,
+          "short_scale": 0.5
+        }
+      }
+    }
   }
 }

@@ -167,6 +167,41 @@ def test_calendar_counts_closed_days_and_leaves_empty_months_blank():
     assert total["win_months_pct"] == 50.0
 
 
+def test_half_size_shorts_cannot_use_the_full_coin_cap():
+    capped = cap_weights({"BTC": -1.0, "ETH": 1.0, "SOL": 1.0}, 0.35, 1.5, 0.5)
+    assert abs(capped["BTC"] - -0.175) < 1e-9
+    assert capped["ETH"] <= 0.35 + 1e-9
+    assert sum(abs(value) for value in capped.values()) <= 1.5 + 1e-9
+    close = [200 - i for i in range(80)]
+    dates = [f"{i:04d}" for i in range(80)]
+    high = [price + 1 for price in close]
+    low = [price - 1 for price in close]
+    full = EnsembleParams(lookbacks=(5, 10), vol_lookback=10, rebalance_band=0.0, target_vol=0.25, short_scale=1.0)
+    half = EnsembleParams(lookbacks=(5, 10), vol_lookback=10, rebalance_band=0.0, target_vol=0.25, short_scale=0.5)
+    kwargs = dict(allow_long=[False] * 80, allow_short=[True] * 80, symbol="BTC")
+    full_coin = simulate_coin(dates, high, low, close, full, **kwargs)
+    half_coin = simulate_coin(dates, high, low, close, half, **kwargs)
+    assert half_coin.weight[-1] < 0
+    assert abs(half_coin.weight[-1] - full_coin.weight[-1] * 0.5) < 1e-9
+
+
+def test_saved_half_size_shorts_stay_inside_30_percent():
+    from backtest.data import ensure_cache
+    from backtest.harness import load_report
+    from backtest.moderate import compare_shorts
+
+    saved = load_report()["shorts_comparison"]
+    fresh = compare_shorts(ensure_cache())
+    assert saved["chosen_scale"] == fresh["chosen_scale"] == 0.5
+    assert saved["fits"] is True
+    assert fresh["chosen"]["oos"]["max_drawdown_pct"] <= 30
+    assert fresh["chosen"]["oos"]["liquidations"] == 0
+    for window in ("oos", "holdout"):
+        assert saved["table_rows"][window]["half"]["max_drawdown_pct"] == fresh["chosen"][window]["max_drawdown_pct"]
+        assert saved["table_rows"][window]["half"]["total_return_pct"] == fresh["chosen"][window]["total_return_pct"]
+        assert saved["table_rows"][window]["long"]["total_return_pct"] == fresh["long_only"][window]["total_return_pct"]
+
+
 def test_meme_sniper_refuses_leverage():
     from meme_sniper.core.settings import load_sniper_config
     from meme_sniper.core.sniper import MemeSniper

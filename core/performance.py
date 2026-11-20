@@ -213,6 +213,7 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
       <p class="subtitle">Meme sniper is not leveraged.</p>
       <p class="subtitle">Paper forward test - did not pass all backtest criteria yet</p>
       <p class="subtitle">Swing: Paper forward test – did not pass all backtest criteria</p>
+      <p class="subtitle">Shorts: on at half size, only when Bitcoin is under its 200-day average.</p>
     </div>
     <span class="badge">PAPER</span>
   </div>
@@ -381,6 +382,8 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
         ${backtestBlock(data)}
         <h2 class="section-title">Leverage comparison</h2>
         ${leverageBlock(data)}
+        <h2 class="section-title">Long-only versus half-size shorts</h2>
+        ${leverageBlock({leverage_comparison: data.shorts_comparison || {}})}
         <h2 class="section-title">Closed P&amp;L in ${data.calendar ? data.calendar.year : ''}</h2>
         ${yearBlock(data.calendar)}
         <h2 class="section-title">Whole portfolio</h2>

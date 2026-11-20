@@ -114,6 +114,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       <p class="subtitle">Meme sniper is not leveraged.</p>
       <p class="subtitle">Paper forward test - did not pass all backtest criteria yet</p>
       <p class="subtitle">Swing: Paper forward test – did not pass all backtest criteria</p>
+      <p class="subtitle">Shorts: on at half size, only when Bitcoin is under its 200-day average.</p>
       <p class="subtitle" id="sniper-line"></p>
     </div>
     <span class="mode-badge" id="mode">—</span>
