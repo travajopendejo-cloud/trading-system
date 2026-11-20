@@ -18,6 +18,7 @@ from bots.trend_bot import TrendBot
 from bots.mean_reversion_bot import MeanReversionBot
 from bots.breakout_bot import BreakoutBot
 from bots.ensemble_trend_bot import EnsembleTrendBot
+from bots.swing_bot import SwingBot
 from core.allocation import portfolio_allocations, scale_sniper_config
 from core.performance import summarize
 from core.portfolio_guard import PortfolioGuard
@@ -61,6 +62,7 @@ BOT_REGISTRY = {
     "mean_reversion_bot": MeanReversionBot,
     "breakout_bot": BreakoutBot,
     "ensemble_trend": EnsembleTrendBot,
+    "swing": SwingBot,
 }
 
 

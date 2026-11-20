@@ -129,7 +129,8 @@ def test_dashboard_reads_real_allocation_and_closed_trades():
     by_name = {row["key"]: row for row in status["allocation"]}
     assert by_name["meme_sniper"]["pct"] == 10.0
     assert by_name["meme_sniper"]["usd"] == 1000
-    assert by_name["ensemble_trend"]["usd"] == 9000
+    assert by_name["ensemble_trend"]["usd"] == 6000
+    assert by_name["swing"]["usd"] == 3000
 
     orchestrator.risk.closed_trades.append(
         _trade("ensemble_trend", "BTC/USDT", 25)
@@ -144,11 +145,13 @@ def test_dashboard_reads_real_allocation_and_closed_trades():
     assert "Performance" in DASHBOARD_HTML
     assert "Risk mode: Conservative" in DASHBOARD_HTML
     assert "Paper forward test - did not pass all backtest criteria yet" in DASHBOARD_HTML
+    assert "Swing: Paper forward test – did not pass all backtest criteria" in DASHBOARD_HTML
     assert "Meme sniper skipped trades" in DASHBOARD_HTML
     assert "/performance" in DASHBOARD_HTML
     assert "portfolio_share" in PERFORMANCE_HTML
     assert "Risk mode: Conservative" in PERFORMANCE_HTML
     assert "Paper forward test - did not pass all backtest criteria yet" in PERFORMANCE_HTML
+    assert "Swing: Paper forward test – did not pass all backtest criteria" in PERFORMANCE_HTML
     assert "Win rate" in PERFORMANCE_HTML
     assert "/static/dagobert-bg.webp" in DASHBOARD_HTML
     assert "background-size: cover" in DASHBOARD_HTML

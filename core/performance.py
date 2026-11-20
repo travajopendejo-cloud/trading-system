@@ -128,6 +128,7 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
       <p class="subtitle"><a href="/">Back to the dashboard</a> · closed paper trades only</p>
       <p class="subtitle">Risk mode: Conservative</p>
       <p class="subtitle">Paper forward test - did not pass all backtest criteria yet</p>
+      <p class="subtitle">Swing: Paper forward test – did not pass all backtest criteria</p>
     </div>
     <span class="badge">PAPER</span>
   </div>
@@ -235,7 +236,7 @@ PERFORMANCE_HTML = r"""<!DOCTYPE html>
           <h2>How the money is split</h2>
           <p class="hint">${data.note || ''}</p>
           <div class="split">${pills}</div>
-          <p class="hint" style="margin-top:12px">To change the meme sniper's share, edit <code>portfolio_share</code> in <code>config/global.yaml</code>. Use 0.10 to 0.30 (10% to 30%). It is 0.10 right now. The ensemble trend bot gets whatever is left. Then restart the app.</p>
+          <p class="hint" style="margin-top:12px">To change the meme sniper's share, edit <code>portfolio_share</code> in <code>config/global.yaml</code>. Use 0.10 to 0.30 (10% to 30%). It is 0.10 right now. Of what is left, the swing bot gets one third and the ensemble trend bot gets two thirds. On a $10,000 account that is $3,000 and $6,000. Then restart the app.</p>
         </section>
         <h2 class="section-title">Backtest results</h2>
         ${backtestBlock(data)}

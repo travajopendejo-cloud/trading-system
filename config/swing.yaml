@@ -1,0 +1,31 @@
+name: swing
+strategy: pullback_swing
+enabled: true
+
+# Daily Binance spot candles. Same coins as the ensemble trend bot. Paper only.
+symbols:
+  - BTC/USDT
+  - ETH/USDT
+  - SOL/USDT
+  - HYPE/USDT
+
+timeframe: 1d
+
+parameters:
+  # Fixed before the backtest was read. Not tuned afterward.
+  sma_trend: 100
+  rsi_length: 2
+  rsi_entry: 10
+  rsi_exit: 70
+  atr_length: 14
+  atr_mult: 2
+  max_hold: 12
+  target_vol: 0.15
+  vol_lookback: 90
+  fee_rate: 0.001
+  slippage_rate: 0.001
+  per_coin_cap: 0.25
+  gross_cap: 0.60
+
+risk:
+  max_positions: 4
