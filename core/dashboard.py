@@ -108,6 +108,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       <p class="subtitle">Live monitoring & controls · <a class="metrics-link" href="/performance">Performance</a> · <a class="metrics-link" href="/metrics" target="_blank">Prometheus metrics</a></p>
       <p class="subtitle">Risk mode: Conservative</p>
       <p class="subtitle">Paper forward test - did not pass all backtest criteria yet</p>
+      <p class="subtitle">Swing: Paper forward test – did not pass all backtest criteria</p>
       <p class="subtitle" id="sniper-line"></p>
     </div>
     <span class="mode-badge" id="mode">—</span>

@@ -20,7 +20,10 @@ risk:
 capital_allocation:
   # Weights for the share left after the meme sniper.
   # The old trend, mean-reversion and breakout bots stay in the repo but at 0.
-  ensemble_trend: 1.0
+  # Of the money left after the meme sniper: two thirds trend, one third swing.
+  # On a $10,000 account that is $6,000 and $3,000. The sniper's 10% is separate.
+  ensemble_trend: 2.0
+  swing: 1.0
   trend_bot: 0
   mean_reversion_bot: 0
   breakout_bot: 0
@@ -57,6 +60,10 @@ bots:
     # Paper forward test. The saved backtest did not pass every rule.
     enabled: true
     config_file: config/ensemble_trend.yaml
+  - name: swing
+    # Paper forward test. The saved swing backtest did not pass every rule.
+    enabled: true
+    config_file: config/swing.yaml
   - name: trend_bot
     enabled: false
     config_file: config/trend_bot.yaml

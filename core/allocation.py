@@ -14,6 +14,7 @@ DISPLAY_NAMES = {
     "mean_reversion_bot": "Mean reversion",
     "breakout_bot": "Breakout",
     "ensemble_trend": "Ensemble trend",
+    "swing": "Swing",
     "meme_sniper": "Meme sniper",
 }
 
